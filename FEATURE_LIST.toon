@@ -4,7 +4,7 @@ features[10]{id,priority,dependencies,description}:
   CORE-03,High,"CORE-01,CORE-02","核心备份逻辑 (Rust)。实现 `create_backup` 命令：接受源路径，生成带时间戳的备份文件夹。包含旧备份的自动清理逻辑 (GC) 以符合保留数量限制。"
   CORE-04,High,"CORE-01,CORE-03","安全恢复逻辑 (Rust)。实现 `restore_backup` 命令：1. 强制对当前存档创建'Undo快照'。 2. 清空当前存档目录。 3. 将选定备份复制回存档目录。"
   CORE-05,Medium,"CORE-03","自动备份后台任务 (Rust)。实现一个后台定时器或文件监听器，根据配置的间隔自动调用备份逻辑。支持前端控制开启/关闭。"
-  UI-01,High,"[]","前端基础架构。搭建 React + Tailwind 项目结构，实现深色主题布局 (Layout)，包含 Header 和主内容区容器。"
+  UI-01,High,"[✓]","前端基础架构。搭建 React + Tailwind 项目结构，实现深色主题布局 (Layout)，包含 Header 和主内容区容器。"
   UI-02,High,"UI-01,CORE-02","设置模块 (Settings)。实现设置弹窗，允许用户浏览/选择存档路径和备份路径，设置保留数量。与 CORE-02 对接。"
   UI-03,High,"UI-01,CORE-02","仪表盘 - 状态与列表。1. 读取并显示当前存档列表。 2. 展示选中存档的历史备份列表 (时间、大小)。"
   UI-04,High,"UI-03,CORE-04","仪表盘 - 核心交互。1. 实现'立即备份'按钮 (调用 CORE-03)。 2. 实现'恢复'按钮及二次确认弹窗 (调用 CORE-04)。"
