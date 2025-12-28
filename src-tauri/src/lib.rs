@@ -689,6 +689,7 @@ async fn refresh_auto_backup_saves_command() -> AutoBackupResultT<()> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             greet,
             copy_dir_recursive,
