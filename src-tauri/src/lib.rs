@@ -4,10 +4,12 @@
 mod backup;
 mod config;
 mod file_ops;
+mod restore;
 
-use backup::{BackupInfo, BackupResult, BackupResultT};
+use backup::{BackupError, BackupInfo, BackupResult, BackupResultT};
 use config::{Config, ConfigResult};
 use file_ops::FileOpsResult;
+use restore::{RestoreError, RestoreResult, RestoreResultT, UndoSnapshotInfo};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -434,6 +436,114 @@ fn get_default_backup_path() -> FileOpsResult<String> {
     Ok(path.to_string_lossy().to_string())
 }
 
+// ============================================================================
+// Restore Commands (CORE-04)
+// ============================================================================
+
+/// Tauri command: Restores a backup with automatic undo snapshot creation.
+///
+/// # Arguments
+/// * `saveName` - Name of the save to restore
+/// * `backupName` - Name of the backup to restore
+///
+/// # Returns
+/// `RestoreResultT<RestoreResult>` - Information about the restore operation
+///
+/// # Safety
+/// This command automatically creates an "undo snapshot" of the current save state
+/// before performing the restore. If the current save doesn't exist, the restore
+/// proceeds without creating a snapshot (first-time restore scenario).
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// const result = await invoke('restore_backup', {
+///   saveName: 'Survival',
+///   backupName: 'Survival_2024-12-28_14-30-45'
+/// });
+/// console.log('Restored to:', result.save_path);
+/// console.log('Undo snapshot created:', result.has_undo_snapshot);
+/// ```
+#[tauri::command]
+fn restore_backup_command(save_name: String, backup_name: String) -> RestoreResultT<RestoreResult> {
+    restore::restore_backup(&save_name, &backup_name)
+}
+
+/// Tauri command: Lists all undo snapshots for a specific save.
+///
+/// # Arguments
+/// * `saveName` - Name of the save
+///
+/// # Returns
+/// `RestoreResultT<Vec<UndoSnapshotInfo>>` - List of undo snapshots sorted by creation time (newest first)
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// const snapshots = await invoke('list_undo_snapshots', {
+///   saveName: 'Survival'
+/// });
+/// snapshots.forEach(snapshot => {
+///   console.log(`${snapshot.name}: ${snapshot.size_formatted}`);
+/// });
+/// ```
+#[tauri::command]
+fn list_undo_snapshots_command(save_name: String) -> RestoreResultT<Vec<UndoSnapshotInfo>> {
+    restore::list_undo_snapshots(&save_name)
+}
+
+/// Tauri command: Restores from an undo snapshot.
+///
+/// # Arguments
+/// * `saveName` - Name of the save
+/// * `snapshotName` - Name of the undo snapshot to restore from
+///
+/// # Returns
+/// `RestoreResultT<RestoreResult>` - Information about the restore operation
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// const result = await invoke('restore_from_undo_snapshot', {
+///   saveName: 'Survival',
+///   snapshotName: 'undo_2024-12-28_14-30-45'
+/// });
+/// console.log('Restored from snapshot to:', result.save_path);
+/// ```
+#[tauri::command]
+fn restore_from_undo_snapshot_command(
+    save_name: String,
+    snapshot_name: String,
+) -> RestoreResultT<RestoreResult> {
+    restore::restore_from_undo_snapshot(&save_name, &snapshot_name)
+}
+
+/// Tauri command: Deletes an undo snapshot.
+///
+/// # Arguments
+/// * `saveName` - Name of the save
+/// * `snapshotName` - Name of the undo snapshot to delete
+///
+/// # Returns
+/// `RestoreResultT<()>` - Ok(()) on success
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// await invoke('delete_undo_snapshot', {
+///   saveName: 'Survival',
+///   snapshotName: 'undo_2024-12-28_14-30-45'
+/// });
+/// ```
+#[tauri::command]
+fn delete_undo_snapshot_command(save_name: String, snapshot_name: String) -> RestoreResultT<()> {
+    restore::delete_undo_snapshot(&save_name, &snapshot_name)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -459,7 +569,12 @@ pub fn run() {
             get_backup_info_command,
             list_saves_with_backups_command,
             count_backups_command,
-            generate_backup_name_command
+            generate_backup_name_command,
+            // Restore commands (CORE-04)
+            restore_backup_command,
+            list_undo_snapshots_command,
+            restore_from_undo_snapshot_command,
+            delete_undo_snapshot_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
