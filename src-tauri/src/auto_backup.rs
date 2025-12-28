@@ -7,11 +7,10 @@
 //! - Per-save auto backup enable/disable
 
 use crate::backup::{BackupError, BackupResult};
-use crate::config::{Config, ConfigError};
+use crate::config::ConfigError;
 use crate::config as config_module;
 use serde::{Deserialize, Serialize, Serializer};
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -215,7 +214,7 @@ impl AutoBackupManager {
     /// # Arguments
     /// * `seconds` - Interval in seconds (must be between MIN and MAX)
     pub async fn set_interval(&self, seconds: u64) -> AutoBackupResultT<()> {
-        if seconds < MIN_AUTO_BACKUP_INTERVAL || seconds > MAX_AUTO_BACKUP_INTERVAL {
+        if !(MIN_AUTO_BACKUP_INTERVAL..=MAX_AUTO_BACKUP_INTERVAL).contains(&seconds) {
             return Err(AutoBackupError::InvalidInterval(
                 format!("Interval must be between {} and {} seconds", MIN_AUTO_BACKUP_INTERVAL, MAX_AUTO_BACKUP_INTERVAL)
             ));
@@ -320,7 +319,7 @@ impl AutoBackupManager {
                 let last_backup = last_backup_times.get(&save_name);
 
                 // Check if enough time has passed since last backup
-                if last_backup.map_or(true, |t| t.elapsed() >= interval_duration) {
+                if last_backup.is_none_or(|t| t.elapsed() >= interval_duration) {
                     // Perform backup
                     match self.backup_save(&save_name).await {
                         Ok(_) => {
@@ -419,7 +418,7 @@ static GLOBAL_MANAGER: std::sync::OnceLock<AutoBackupManager> = std::sync::OnceL
 
 /// Gets the global auto backup manager instance.
 pub fn get_manager() -> &'static AutoBackupManager {
-    GLOBAL_MANAGER.get_or_init(|| AutoBackupManager::new())
+    GLOBAL_MANAGER.get_or_init(AutoBackupManager::new)
 }
 
 // ============================================================================
@@ -472,9 +471,11 @@ pub async fn refresh_auto_backup_saves() -> AutoBackupResultT<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::Config;
     use serial_test::serial;
     use std::fs::{self, File};
     use std::io::Write;
+    use std::path::Path;
     use tempfile::TempDir;
 
     /// Helper to create a test save directory with files

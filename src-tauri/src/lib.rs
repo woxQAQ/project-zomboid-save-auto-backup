@@ -11,7 +11,7 @@ use auto_backup::{AutoBackupStatus, AutoBackupResultT};
 use backup::{BackupInfo, BackupResult, BackupResultT};
 use config::{Config, ConfigResult};
 use file_ops::FileOpsResult;
-use restore::{RestoreError, RestoreResult, RestoreResultT, UndoSnapshotInfo};
+use restore::{RestoreResult, RestoreResultT, UndoSnapshotInfo};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -689,6 +689,7 @@ async fn refresh_auto_backup_saves_command() -> AutoBackupResultT<()> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             greet,
             copy_dir_recursive,

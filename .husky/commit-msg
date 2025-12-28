@@ -1,0 +1,44 @@
+#!/usr/bin/env sh
+# Validate conventional commit format
+# Format: type(scope): description
+# Types: feat, fix, docs, style, refactor, perf, test, chore, build, ci, revert
+
+commit_msg_file=$1
+commit_msg=$(cat "$commit_msg_file")
+
+# Regular expression for conventional commits
+# Allows: type(scope): description, type: description, or Merge branch / PR messages
+conventional_commit_regex="^(feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert)(\(.+\))?:\s.+|^Merge branch|^Merge pull request"
+
+if echo "$commit_msg" | grep -qE "$conventional_commit_regex"; then
+  exit 0
+else
+  echo "❌ Invalid commit message format."
+  echo ""
+  echo "Commit messages must follow the Conventional Commits format:"
+  echo "  type(scope): description"
+  echo ""
+  echo "Available types:"
+  echo "  feat     - A new feature"
+  echo "  fix      - A bug fix"
+  echo "  docs     - Documentation only changes"
+  echo "  style    - Code style changes (formatting, etc.)"
+  echo "  refactor - Code refactoring"
+  echo "  perf     - Performance improvements"
+  echo "  test     - Adding or updating tests"
+  echo "  chore    - Maintenance tasks"
+  echo "  build    - Build system changes"
+  echo "  ci       - CI/CD changes"
+  echo "  revert   - Revert a previous commit"
+  echo ""
+  echo "Examples:"
+  echo "  feat(ui-02): implement settings modal module"
+  echo "  fix(core-03): resolve backup path validation error"
+  echo "  docs: update README with installation instructions"
+  echo ""
+  echo "Your message was:"
+  echo "  $commit_msg"
+  echo ""
+  echo "To bypass this check (not recommended), use: git commit --no-verify"
+  exit 1
+fi

@@ -1,0 +1,28 @@
+# Clippy configuration for Project Zomboid Save Backup Tool
+
+# Complexity thresholds
+too-many-arguments-threshold = 7
+type-complexity-threshold = 250
+too-many-lines-threshold = 100
+
+# Literal representation
+literal-representation-threshold = 10
+
+# Enum variant size threshold
+enum-variant-size-threshold = 200
+
+# Stack size threshold
+stack-size-threshold = 512000
+
+# Allow certain cognitive complexity
+cognitive-complexity-threshold = 30
+
+# Disallow methods that expect no effects but have them
+disallowed-methods = []
+
+# Allow certain macros
+allowed-scripts = ["Unicode"]
+
+# Allow these lints (warnings that are acceptable for this project)
+allow-expect-in-tests = true
+allow-unwrap-in-tests = true
