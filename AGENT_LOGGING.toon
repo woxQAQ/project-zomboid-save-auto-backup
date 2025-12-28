@@ -1,4 +1,4 @@
-Log[5]
+Log[8]
   - time: 2024-12-28T03:50:00Z
     content: "feat(core-01): Implement basic file system operations - CORE-01 completed"
     file-related[5]: src-tauri/src/file_ops.rs,src-tauri/src/lib.rs,src-tauri/Cargo.toml,AGENT_LOGGING.toon,FEATURE_LIST.toon
@@ -23,3 +23,6 @@ Log[5]
     content: "fix(core-04): Address PR #4 review comments - Removed unused BackupError import from lib.rs (issue #1), added file locking warning documentation to restore_backup() function (issue #3). All 65 tests still passing. Non-blocking items noted for future: atomic write pattern consideration, edge case test for corrupted undo directories, capability configuration verification. Branch: feat/core-04-safe-restore"
     file-related[2]: src-tauri/src/lib.rs,src-tauri/src/restore.rs,AGENT_LOGGING.toon
     responded-comment-id: IC_kwDOQtGHec7cOCAM
+  - time: 2025-12-28T16:00:00Z
+    content: "feat(core-05): Implement auto backup background task - CORE-05 completed. Added background timer-based automatic backup with configurable interval (60-86400s default 300s), global singleton AutoBackupManager with RwLock-based state management, per-save auto backup enable/disable with state tracking. 7 new Tauri commands: start_auto_backup, stop_auto_backup, get_auto_backup_status, set_auto_backup_interval, enable_auto_backup, disable_auto_backup, refresh_auto_backup_saves. Implementation uses tokio async runtime with spawn_blocking for sync backup operations. Tracks last_backup_time and next_backup_time per save. Saves must exist before enabling auto backup. Added 13 new unit tests, all 79 tests passing. Added tokio dependency with sync, time, rt-multi-thread, macros features. Branch: feat/core-05-auto-backup-task"
+    file-related[4]: src-tauri/src/auto_backup.rs,src-tauri/src/lib.rs,src-tauri/Cargo.toml,src-tauri/Cargo.lock

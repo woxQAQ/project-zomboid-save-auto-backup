@@ -1,11 +1,13 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod auto_backup;
 mod backup;
 mod config;
 mod file_ops;
 mod restore;
 
+use auto_backup::{AutoBackupStatus, AutoBackupResultT};
 use backup::{BackupInfo, BackupResult, BackupResultT};
 use config::{Config, ConfigResult};
 use file_ops::FileOpsResult;
@@ -544,6 +546,145 @@ fn delete_undo_snapshot_command(save_name: String, snapshot_name: String) -> Res
     restore::delete_undo_snapshot(&save_name, &snapshot_name)
 }
 
+// ============================================================================
+// Auto Backup Commands (CORE-05)
+// ============================================================================
+
+/// Tauri command: Starts the auto backup service.
+///
+/// # Returns
+/// `AutoBackupResultT<()>` - Ok(()) on success
+///
+/// # Behavior
+/// - If already running, returns error
+/// - Starts a background task that periodically creates backups for enabled saves
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// await invoke('start_auto_backup');
+/// ```
+#[tauri::command]
+async fn start_auto_backup_command() -> AutoBackupResultT<()> {
+    auto_backup::start_auto_backup().await
+}
+
+/// Tauri command: Stops the auto backup service.
+///
+/// # Returns
+/// `AutoBackupResultT<()>` - Ok(()) on success
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// await invoke('stop_auto_backup');
+/// ```
+#[tauri::command]
+async fn stop_auto_backup_command() -> AutoBackupResultT<()> {
+    auto_backup::stop_auto_backup().await
+}
+
+/// Tauri command: Gets the current auto backup status.
+///
+/// # Returns
+/// `AutoBackupStatus` - Current status including running state, interval, and per-save states
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// const status = await invoke('get_auto_backup_status');
+/// console.log('Running:', status.is_running);
+/// console.log('Interval:', status.interval_seconds);
+/// Object.entries(status.saves).forEach(([name, state]) => {
+///   console.log(`${name}: enabled=${state.enabled}`);
+/// });
+/// ```
+#[tauri::command]
+async fn get_auto_backup_status_command() -> AutoBackupStatus {
+    auto_backup::get_auto_backup_status().await
+}
+
+/// Tauri command: Sets the auto backup interval.
+///
+/// # Arguments
+/// * `seconds` - Interval in seconds (must be between 60 and 86400)
+///
+/// # Returns
+/// `AutoBackupResultT<()>` - Ok(()) on success
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// // Set interval to 10 minutes (600 seconds)
+/// await invoke('set_auto_backup_interval', { seconds: 600 });
+/// ```
+#[tauri::command]
+async fn set_auto_backup_interval_command(seconds: u64) -> AutoBackupResultT<()> {
+    auto_backup::set_auto_backup_interval(seconds).await
+}
+
+/// Tauri command: Enables auto backup for a specific save.
+///
+/// # Arguments
+/// * `saveName` - Name of the save
+///
+/// # Returns
+/// `AutoBackupResultT<()>` - Ok(()) on success
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// await invoke('enable_auto_backup', {
+///   saveName: 'Survival'
+/// });
+/// ```
+#[tauri::command]
+async fn enable_auto_backup_command(save_name: String) -> AutoBackupResultT<()> {
+    auto_backup::enable_auto_backup(save_name).await
+}
+
+/// Tauri command: Disables auto backup for a specific save.
+///
+/// # Arguments
+/// * `saveName` - Name of the save
+///
+/// # Returns
+/// `AutoBackupResultT<()>` - Ok(()) on success
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// await invoke('disable_auto_backup', {
+///   saveName: 'Survival'
+/// });
+/// ```
+#[tauri::command]
+async fn disable_auto_backup_command(save_name: String) -> AutoBackupResultT<()> {
+    auto_backup::disable_auto_backup(save_name).await
+}
+
+/// Tauri command: Refreshes the auto backup save states from available saves.
+///
+/// # Returns
+/// `AutoBackupResultT<()>` - Ok(()) on success
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// await invoke('refresh_auto_backup_saves');
+/// ```
+#[tauri::command]
+async fn refresh_auto_backup_saves_command() -> AutoBackupResultT<()> {
+    auto_backup::refresh_auto_backup_saves().await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -574,7 +715,15 @@ pub fn run() {
             restore_backup_command,
             list_undo_snapshots_command,
             restore_from_undo_snapshot_command,
-            delete_undo_snapshot_command
+            delete_undo_snapshot_command,
+            // Auto backup commands (CORE-05)
+            start_auto_backup_command,
+            stop_auto_backup_command,
+            get_auto_backup_status_command,
+            set_auto_backup_interval_command,
+            enable_auto_backup_command,
+            disable_auto_backup_command,
+            refresh_auto_backup_saves_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
