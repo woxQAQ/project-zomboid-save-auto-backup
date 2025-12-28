@@ -67,3 +67,14 @@ Log[16]
     content: "fix(ui-06): Address PR #12 review comment - Responded to code review from IC_kwDOQtGHec7cOpE3. Fixed 1 issue: Separated game mode key from display value for better code clarity. Changes: (1) Renamed `selectedGameMode` to `selectedGameModeKey` to clarify it stores the raw backend key, not the display value, (2) Store raw game_mode key from SaveEntry in state for lookups, (3) Use `getGameModeDisplay()` only for UI display (dropdown options, footer), (4) Removed `getGameModeDisplay` from `loadSaves` dependency array since we now store the raw key. This improves code clarity and makes it explicit that we use backend keys for data lookups and only transform for display purposes. Future changes to display logic won't break data lookups. Build verification: Frontend builds successfully, Biome linting passes. Branch: feat/ui-06-save-selector-upgrade"
     file-related[1]: src/components/SaveSelector.tsx
     responded-comment-id: IC_kwDOQtGHec7cOpE3
+Log[17]
+  - time: 2025-12-29T00:00:00Z
+    content: "fix: Address PR #13 review feedback - Fixed 2 documentation issues from code review: (1) Fixed compression level comment mismatch in create_tar_gz() docstring - changed from 'Uses gzip compression level 6' to 'Uses default gzip compression (level 6) for balanced speed/compression ratio' for clarity since the code uses Compression::default(), (2) Added documentation for unused _save_name parameter in generate_backup_name() explaining it's kept for API compatibility but not used since the backup filename is now just a timestamp. All 98 unit tests and 12 doc tests still passing. Branch: feat/compressed-backup-format"
+    file-related[2]: src-tauri/src/backup.rs,src-tauri/src/file_ops.rs
+    responded-comment-id: 
+
+Log[17]
+  - time: 2025-12-29T00:00:00Z
+    content: "fix: Address PR #13 review feedback - Fixed 2 documentation issues from code review: (1) Fixed compression level comment mismatch in create_tar_gz() docstring - changed from 'Uses gzip compression level 6' to 'Uses default gzip compression (level 6) for balanced speed/compression ratio' for clarity since the code uses Compression::default(), (2) Added documentation for unused _save_name parameter in generate_backup_name() explaining it's kept for API compatibility but not used since the backup filename is now just a timestamp. All 98 unit tests and 12 doc tests still passing. Branch: feat/compressed-backup-format"
+    file-related[2]: src-tauri/src/backup.rs,src-tauri/src/file_ops.rs
+    responded-comment-id: auto-generated-review-from-actions

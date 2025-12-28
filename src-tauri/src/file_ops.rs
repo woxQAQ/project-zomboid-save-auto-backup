@@ -10,6 +10,8 @@ use std::fmt;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use flate2::{write::GzEncoder, Compression};
+use tar::Builder;
 
 /// Error type for file operations.
 #[derive(Debug)]
@@ -434,6 +436,145 @@ pub fn show_in_file_manager(path: &Path) -> FileOpsResult<()> {
         }
     }
 
+    Ok(())
+}
+
+/// Creates a compressed tar.gz archive of a directory.
+///
+/// # Arguments
+/// * `src_dir` - Source directory to compress
+/// * `dst_file` - Destination .tar.gz file path
+///
+/// # Returns
+/// `FileOpsResult<()>` - Ok(()) on success, Err on failure
+///
+/// # Behavior
+/// - Creates parent directories if needed
+/// - Returns error if source doesn't exist
+/// - Returns error if destination already exists
+/// - Uses default gzip compression (level 6) for balanced speed/compression ratio
+///
+/// # Example
+/// ```no_run
+/// use std::path::Path;
+/// use tauri_app_lib::file_ops::create_tar_gz;
+///
+/// create_tar_gz(
+///     Path::new("/save/game"),
+///     Path::new("/backup/game_2024-12-28.tar.gz")
+/// ).unwrap();
+/// ```
+pub fn create_tar_gz(src_dir: &Path, dst_file: &Path) -> FileOpsResult<()> {
+    if !src_dir.exists() {
+        return Err(FileOpsError::SourceNotFound(src_dir.to_path_buf()));
+    }
+
+    if dst_file.exists() {
+        return Err(FileOpsError::DestinationExists(dst_file.to_path_buf()));
+    }
+
+    // Create parent directories if needed
+    if let Some(parent) = dst_file.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent)?;
+        }
+    }
+
+    // Create the tar.gz file
+    let gz_file = fs::File::create(dst_file)?;
+    let encoder = GzEncoder::new(gz_file, Compression::default());
+    let mut tar = Builder::new(encoder);
+
+    // Add the source directory to the archive
+    tar.append_dir_all(".", src_dir)?;
+
+    // Finish the archive (this flushes and completes the gzip stream)
+    let encoder = tar.into_inner()?;
+    encoder.finish()?;
+
+    Ok(())
+}
+
+/// Extracts a compressed tar.gz archive to a directory.
+///
+/// # Arguments
+/// * `src_file` - Source .tar.gz file path
+/// * `dst_dir` - Destination directory to extract to
+///
+/// # Returns
+/// `FileOpsResult<()>` - Ok(()) on success, Err on failure
+///
+/// # Behavior
+/// - Returns error if source file doesn't exist
+/// - Returns error if destination already exists
+/// - Creates parent directories if needed
+///
+/// # Example
+/// ```no_run
+/// use std::path::Path;
+/// use tauri_app_lib::file_ops::extract_tar_gz;
+///
+/// extract_tar_gz(
+///     Path::new("/backup/game_2024-12-28.tar.gz"),
+///     Path::new("/save/game")
+/// ).unwrap();
+/// ```
+pub fn extract_tar_gz(src_file: &Path, dst_dir: &Path) -> FileOpsResult<()> {
+    if !src_file.exists() {
+        return Err(FileOpsError::SourceNotFound(src_file.to_path_buf()));
+    }
+
+    if dst_dir.exists() {
+        return Err(FileOpsError::DestinationExists(dst_dir.to_path_buf()));
+    }
+
+    // Create parent directories if needed
+    if let Some(parent) = dst_dir.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent)?;
+        }
+    }
+
+    // Open the gz file and create a decoder
+    let gz_file = fs::File::open(src_file)?;
+    let decoder = flate2::read::GzDecoder::new(gz_file);
+    let mut archive = tar::Archive::new(decoder);
+
+    // Extract the archive
+    archive.unpack(dst_dir)?;
+
+    Ok(())
+}
+
+/// Gets the size of a file.
+///
+/// # Arguments
+/// * `path` - Path to the file
+///
+/// # Returns
+/// `FileOpsResult<u64>` - Size in bytes on success, Err on failure
+pub fn get_file_size(path: &Path) -> FileOpsResult<u64> {
+    if !path.exists() {
+        return Err(FileOpsError::SourceNotFound(path.to_path_buf()));
+    }
+
+    let metadata = fs::metadata(path)?;
+    Ok(metadata.len())
+}
+
+/// Deletes a file.
+///
+/// # Arguments
+/// * `path` - Path to the file to delete
+///
+/// # Returns
+/// `FileOpsResult<()>` - Ok(()) on success, Err on failure
+pub fn delete_file(path: &Path) -> FileOpsResult<()> {
+    if !path.exists() {
+        return Err(FileOpsError::SourceNotFound(path.to_path_buf()));
+    }
+
+    fs::remove_file(path)?;
     Ok(())
 }
 
