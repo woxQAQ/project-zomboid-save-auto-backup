@@ -20,11 +20,12 @@ interface SaveEntry {
 export const SaveSelector: React.FC<SaveSelectorProps> = ({ selectedSave, onSaveChange }) => {
   const [savesByGameMode, setSavesByGameMode] = useState<Record<string, SaveEntry[]>>({});
   const [allSaves, setAllSaves] = useState<SaveEntry[]>([]);
-  const [selectedGameMode, setSelectedGameMode] = useState<string>("");
+  const [selectedGameModeKey, setSelectedGameModeKey] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Helper function to get display name for game mode
+  // Note: Backend already returns "(Other)" for flat saves, so this is mainly for consistency
   const getGameModeDisplay = useCallback((gameMode: string): string => {
     return gameMode || "(Other)";
   }, []);
@@ -44,16 +45,17 @@ export const SaveSelector: React.FC<SaveSelectorProps> = ({ selectedSave, onSave
       // Auto-select the first save if none is selected
       if (!selectedSave && saveEntries.length > 0) {
         const firstEntry = saveEntries[0];
-        setSelectedGameMode(getGameModeDisplay(firstEntry.game_mode));
+        // Store the raw game mode key (from backend) for lookups
+        setSelectedGameModeKey(firstEntry.game_mode);
         onSaveChange(firstEntry.relative_path);
       } else if (selectedSave) {
         // Find the game mode for the currently selected save
         const entry = saveEntries.find((e) => e.relative_path === selectedSave);
         if (entry) {
-          setSelectedGameMode(getGameModeDisplay(entry.game_mode));
+          setSelectedGameModeKey(entry.game_mode);
         } else {
           // If the currently selected save no longer exists, clear selection
-          setSelectedGameMode("");
+          setSelectedGameModeKey("");
           onSaveChange(null);
         }
       }
@@ -63,7 +65,7 @@ export const SaveSelector: React.FC<SaveSelectorProps> = ({ selectedSave, onSave
     } finally {
       setLoading(false);
     }
-  }, [selectedSave, onSaveChange, getGameModeDisplay]);
+  }, [selectedSave, onSaveChange]);
 
   useEffect(() => {
     loadSaves();
@@ -72,12 +74,14 @@ export const SaveSelector: React.FC<SaveSelectorProps> = ({ selectedSave, onSave
   // Get list of available game modes
   const gameModes = Object.keys(savesByGameMode).sort();
 
-  // Get saves for selected game mode
-  const savesForSelectedMode = selectedGameMode ? savesByGameMode[selectedGameMode] || [] : [];
+  // Get saves for selected game mode (use raw key for lookup)
+  const savesForSelectedMode = selectedGameModeKey
+    ? savesByGameMode[selectedGameModeKey] || []
+    : [];
 
   const handleGameModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const gameMode = e.target.value;
-    setSelectedGameMode(gameMode);
+    setSelectedGameModeKey(gameMode);
 
     // Auto-select the first save in this game mode
     const saves = savesByGameMode[gameMode];
@@ -197,7 +201,7 @@ export const SaveSelector: React.FC<SaveSelectorProps> = ({ selectedSave, onSave
           </label>
           <select
             id="game-mode-select"
-            value={selectedGameMode}
+            value={selectedGameModeKey}
             onChange={handleGameModeChange}
             disabled={gameModes.length === 0}
             className="w-full bg-gray-800 border border-gray-700 rounded-md px-4 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:bg-gray-850 disabled:text-gray-600 disabled:cursor-not-allowed"
@@ -209,7 +213,7 @@ export const SaveSelector: React.FC<SaveSelectorProps> = ({ selectedSave, onSave
                 <option value="">-- Select mode --</option>
                 {gameModes.map((mode) => (
                   <option key={mode} value={mode}>
-                    {mode} ({savesByGameMode[mode].length})
+                    {getGameModeDisplay(mode)} ({savesByGameMode[mode].length})
                   </option>
                 ))}
               </>
@@ -226,10 +230,10 @@ export const SaveSelector: React.FC<SaveSelectorProps> = ({ selectedSave, onSave
             id="save-select"
             value={selectedSave || ""}
             onChange={handleSaveChange}
-            disabled={!selectedGameMode || savesForSelectedMode.length === 0}
+            disabled={!selectedGameModeKey || savesForSelectedMode.length === 0}
             className="w-full bg-gray-800 border border-gray-700 rounded-md px-4 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all disabled:bg-gray-850 disabled:text-gray-600 disabled:cursor-not-allowed"
           >
-            {!selectedGameMode || savesForSelectedMode.length === 0 ? (
+            {!selectedGameModeKey || savesForSelectedMode.length === 0 ? (
               <option value="">-- Select save --</option>
             ) : (
               <>
@@ -254,7 +258,7 @@ export const SaveSelector: React.FC<SaveSelectorProps> = ({ selectedSave, onSave
         </span>
         {selectedSave && (
           <span className="text-gray-400">
-            {selectedGameMode} /{" "}
+            {getGameModeDisplay(selectedGameModeKey)} /{" "}
             {savesForSelectedMode.find((s) => s.relative_path === selectedSave)?.save_name}
           </span>
         )}
