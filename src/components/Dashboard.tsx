@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useState } from "react";
-import { DeleteModal, RestoreModal, Toast, type ToastType } from "./";
+import { useCallback, useEffect, useState } from "react";
+import { AutoBackupControl, DeleteModal, RestoreModal, Toast, type ToastType } from "./";
 import { BackupList } from "./BackupList";
 import { SaveSelector } from "./SaveSelector";
 
@@ -61,6 +61,19 @@ export const Dashboard: React.FC = () => {
   const handleSaveChange = (saveName: string | null) => {
     setSelectedSave(saveName);
   };
+
+  // Refresh auto backup saves when selected save changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedSave is intentionally tracked to refresh saves on change
+  useEffect(() => {
+    const refreshAutoBackupSaves = async () => {
+      try {
+        await invoke("refresh_auto_backup_saves");
+      } catch (err) {
+        console.error("Failed to refresh auto backup saves:", err);
+      }
+    };
+    refreshAutoBackupSaves();
+  }, [selectedSave]);
 
   // Backup now handler
   const handleBackupNow = async () => {
@@ -264,6 +277,9 @@ export const Dashboard: React.FC = () => {
           )}
         </button>
       </div>
+
+      {/* Auto Backup Control */}
+      <AutoBackupControl selectedSave={selectedSave} />
 
       {/* Backup List */}
       <div className="flex-1 min-h-0">
