@@ -126,7 +126,7 @@ export const BackupList: React.FC<BackupListProps> = ({
 
   const handleOpenInFileManager = async (backup: BackupItem) => {
     try {
-      console.log("opening ", backup.backupPath)
+      console.log("opening ", backup.backupPath);
       await invoke("show_in_file_manager", {
         targetPath: backup.backupPath,
       });
