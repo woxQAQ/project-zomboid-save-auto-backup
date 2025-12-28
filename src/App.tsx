@@ -12,16 +12,10 @@ function App() {
     setShowSettings(false);
   };
 
-  const handleRestoreInitiate = (saveName: string, backupName: string) => {
-    // This will be implemented in UI-04 with the restore confirmation dialog
-    console.log("Restore initiated:", { saveName, backupName });
-    // TODO: Show confirmation dialog in UI-04
-  };
-
   return (
     <>
       <Layout onSettingsClick={handleSettingsClick}>
-        <Dashboard onRestoreInitiate={handleRestoreInitiate} />
+        <Dashboard />
       </Layout>
 
       <Settings isOpen={showSettings} onClose={handleCloseSettings} />

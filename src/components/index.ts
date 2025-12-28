@@ -1,6 +1,9 @@
 export { BackupList } from "./BackupList";
 export { Dashboard } from "./Dashboard";
+export { DeleteModal } from "./DeleteModal";
 export { Header } from "./Header";
 export { Layout } from "./Layout";
+export { RestoreModal } from "./RestoreModal";
 export { SaveSelector } from "./SaveSelector";
 export { Settings } from "./Settings";
+export { Toast, type ToastType } from "./Toast";
