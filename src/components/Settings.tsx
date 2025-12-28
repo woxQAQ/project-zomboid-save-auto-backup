@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Configuration interface matching the Rust Config struct
@@ -38,6 +38,18 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Ref to track the timeout for cleanup
+  const successTimeoutRef = useRef<number | null>(null);
+
+  // Clear timeout on unmount to prevent race conditions
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current !== null) {
+        clearTimeout(successTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const loadConfig = useCallback(async () => {
     setIsLoading(true);
@@ -151,9 +163,14 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
       setSuccessMessage("Settings saved successfully!");
 
       // Auto-close after success
-      setTimeout(() => {
+      // Clear any existing timeout first
+      if (successTimeoutRef.current !== null) {
+        clearTimeout(successTimeoutRef.current);
+      }
+      successTimeoutRef.current = window.setTimeout(() => {
         onClose();
         setSuccessMessage(null);
+        successTimeoutRef.current = null;
       }, 1500);
     } catch (err) {
       setError(`Failed to save configuration: ${err}`);
@@ -324,7 +341,7 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                     type="range"
                     min="1"
                     max="100"
-                    value={parseInt(retentionInput, 10) || 10}
+                    value={Math.max(1, Math.min(100, parseInt(retentionInput, 10) || 10))}
                     onChange={(e) => setRetentionInput(e.target.value)}
                     className="flex-1 accent-primary"
                   />

@@ -2,8 +2,8 @@
 echo "Running pre-commit hooks..."
 
 echo "1. Running Rust clippy linter..."
-(cd "$(dirname -- "$0")/../src-tauri" && cargo clippy --all-targets --all-features --quiet 2>&1) | grep -E "^error:" && {
-  echo "❌ Clippy found errors. Please fix them before committing."
+(cd "$(dirname -- "$0")/../src-tauri" && cargo clippy --all-targets --all-features 2>&1) | grep -E "^error:" && {
+  echo "❌ Clippy found compilation errors. Please fix them before committing."
   exit 1
 }
 
