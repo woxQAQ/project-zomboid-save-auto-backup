@@ -1,11 +1,11 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod auto_backup;
-mod backup;
-mod config;
-mod file_ops;
-mod restore;
+pub mod auto_backup;
+pub mod backup;
+pub mod config;
+pub mod file_ops;
+pub mod restore;
 
 use auto_backup::{AutoBackupStatus, AutoBackupResultT};
 use backup::{BackupInfo, BackupResult, BackupResultT};

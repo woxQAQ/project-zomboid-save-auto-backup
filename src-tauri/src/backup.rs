@@ -5,7 +5,7 @@
 //! - Garbage collection for old backups based on retention policy
 //! - Backup listing and metadata queries
 
-use crate::file_ops::{copy_dir_recursive, delete_dir_recursive, get_dir_size, FileOpsError, FileOpsResult};
+use crate::file_ops::{create_tar_gz, delete_file, get_file_size, FileOpsError, FileOpsResult};
 use crate::config::ConfigError;
 use crate::config as config_module;
 use chrono::{DateTime, Utc};
@@ -105,21 +105,24 @@ impl Serialize for BackupError {
 /// Result type for backup operations.
 pub type BackupResultT<T> = Result<T, BackupError>;
 
-/// Generates a timestamped backup directory name.
+/// Generates a timestamped backup file name.
 ///
 /// # Format
-/// `{SaveName}_{YYYY-MM-DD}_{HH-mm-ss}`
+/// `{YYYY-MM-DD}_{HH-mm-ss}.tar.gz`
+///
+/// The backup file name contains only the timestamp, not the save name.
+/// The save name is already part of the directory structure.
 ///
 /// # Example
 /// ```
 /// # use tauri_app_lib::backup::generate_backup_name;
-/// let name = generate_backup_name("Survival");
-/// // Returns: "Survival_2024-12-28_14-30-45"
+/// let name = generate_backup_name("sandbox/aaa");
+/// // Returns: "2024-12-28_14-30-45.tar.gz"
 /// ```
-pub fn generate_backup_name(save_name: &str) -> String {
+pub fn generate_backup_name(_save_name: &str) -> String {
     let now = Utc::now();
     let timestamp = now.format("%Y-%m-%d_%H-%M-%S");
-    format!("{}_{}", save_name, timestamp)
+    format!("{}.tar.gz", timestamp)
 }
 
 /// Gets the backup directory for a specific save.
@@ -137,16 +140,20 @@ pub fn get_save_backup_dir(backup_base_path: &Path, save_name: &str) -> PathBuf 
 /// Creates a backup of the specified save directory.
 ///
 /// # Arguments
-/// * `save_name` - Name of the save to backup (must exist in save path)
+/// * `save_name` - Relative path of the save to backup (e.g., "sandbox/aaa")
 ///
 /// # Returns
 /// `BackupResultT<BackupResult>` - Information about the created backup
 ///
 /// # Behavior
 /// 1. Validates the save directory exists
-/// 2. Generates timestamped backup name
-/// 3. Copies the entire save directory to backup location
+/// 2. Generates timestamped backup name (using only save leaf name)
+/// 3. Creates a compressed tar.gz archive
 /// 4. Runs garbage collection to remove old backups exceeding retention limit
+///
+/// # Backup Path Structure
+/// For a save at `Saves/sandbox/aaa`:
+/// - Backup path: `$PZ_BACKUP_PATH/sandbox/aaa/aaa_2024-12-28_14-30-45.tar.gz`
 pub fn create_backup(save_name: &str) -> BackupResultT<BackupResult> {
     let config = config_module::load_config()?;
     let save_path = config.get_save_path()?;
@@ -162,18 +169,19 @@ pub fn create_backup(save_name: &str) -> BackupResultT<BackupResult> {
     }
 
     // Create backup base directory if it doesn't exist
+    // Use the relative path as the backup directory structure
     let save_backup_dir = get_save_backup_dir(&backup_base_path, save_name);
     if !save_backup_dir.exists() {
         fs::create_dir_all(&save_backup_dir)
             .map_err(FileOpsError::Io)?;
     }
 
-    // Generate backup name and path
+    // Generate backup name and path (backup_name uses only save leaf name)
     let backup_name = generate_backup_name(save_name);
     let backup_path = save_backup_dir.join(&backup_name);
 
-    // Perform the backup copy
-    copy_dir_recursive(&save_dir, &backup_path)?;
+    // Perform the backup compression
+    create_tar_gz(&save_dir, &backup_path)?;
 
     // Run garbage collection
     let retention_count = config.retention_count;
@@ -197,11 +205,11 @@ pub fn create_backup(save_name: &str) -> BackupResultT<BackupResult> {
 /// `FileOpsResult<(usize, usize)>` - (retained_count, deleted_count)
 ///
 /// # Behavior
-/// - Lists all backup directories sorted by creation time (newest first)
+/// - Lists all backup tar.gz files sorted by creation time (newest first)
 /// - Keeps the newest `retention_count` backups
 /// - Deletes older backups
 fn garbage_collection(save_backup_dir: &Path, retention_count: usize) -> FileOpsResult<(usize, usize)> {
-    let mut backups = list_backup_dirs(save_backup_dir)?;
+    let mut backups = list_backup_files(save_backup_dir)?;
 
     // Sort by creation time (newest first)
     backups.sort_by(|a, b| b.created.cmp(&a.created));
@@ -217,7 +225,7 @@ fn garbage_collection(save_backup_dir: &Path, retention_count: usize) -> FileOps
     for backup in &to_delete {
         let backup_path = save_backup_dir.join(&backup.name);
         // Silently ignore errors during GC - a failed deletion is not critical
-        let _ = delete_dir_recursive(&backup_path);
+        let _ = delete_file(&backup_path);
     }
 
     let retained = total_backups.saturating_sub(to_delete.len());
@@ -226,21 +234,21 @@ fn garbage_collection(save_backup_dir: &Path, retention_count: usize) -> FileOps
     Ok((retained, deleted))
 }
 
-/// Internal struct for tracking backup directories during GC.
+/// Internal struct for tracking backup files during GC.
 #[derive(Debug)]
-struct BackupDir {
+struct BackupFile {
     name: String,
     created: SystemTime,
 }
 
-/// Lists all backup directories in a save's backup folder.
+/// Lists all backup tar.gz files in a save's backup folder.
 ///
 /// # Arguments
 /// * `save_backup_dir` - Directory containing backups for a specific save
 ///
 /// # Returns
-/// `FileOpsResult<Vec<BackupDir>>` - List of backup directories with metadata
-fn list_backup_dirs(save_backup_dir: &Path) -> FileOpsResult<Vec<BackupDir>> {
+/// `FileOpsResult<Vec<BackupFile>>` - List of backup files with metadata
+fn list_backup_files(save_backup_dir: &Path) -> FileOpsResult<Vec<BackupFile>> {
     if !save_backup_dir.exists() {
         return Ok(Vec::new());
     }
@@ -251,18 +259,22 @@ fn list_backup_dirs(save_backup_dir: &Path) -> FileOpsResult<Vec<BackupDir>> {
         let entry = entry?;
         let path = entry.path();
 
-        if path.is_dir() {
+        // Only process .tar.gz files
+        if path.is_file() {
             if let Some(name) = path.file_name() {
                 if let Some(name_str) = name.to_str() {
-                    let metadata = entry.metadata()?;
-                    let created = metadata.created()
-                        .or_else(|_| metadata.modified())
-                        .unwrap_or_else(|_| SystemTime::now());
+                    // Check if it's a backup file (ends with .tar.gz)
+                    if name_str.ends_with(".tar.gz") {
+                        let metadata = entry.metadata()?;
+                        let created = metadata.created()
+                            .or_else(|_| metadata.modified())
+                            .unwrap_or_else(|_| SystemTime::now());
 
-                    backups.push(BackupDir {
-                        name: name_str.to_string(),
-                        created,
-                    });
+                        backups.push(BackupFile {
+                            name: name_str.to_string(),
+                            created,
+                        });
+                    }
                 }
             }
         }
@@ -274,7 +286,7 @@ fn list_backup_dirs(save_backup_dir: &Path) -> FileOpsResult<Vec<BackupDir>> {
 /// Lists all backups for a specific save.
 ///
 /// # Arguments
-/// * `save_name` - Name of the save
+/// * `save_name` - Relative path of the save (e.g., "sandbox/aaa")
 ///
 /// # Returns
 /// `BackupResultT<Vec<BackupInfo>>` - List of backups sorted by creation time (newest first)
@@ -295,28 +307,32 @@ pub fn list_backups(save_name: &str) -> BackupResultT<Vec<BackupInfo>> {
         let entry = entry.map_err(FileOpsError::Io)?;
         let path = entry.path();
 
-        if path.is_dir() {
+        // Only process .tar.gz files
+        if path.is_file() {
             if let Some(name) = path.file_name() {
                 if let Some(name_str) = name.to_str() {
-                    let size_bytes = get_dir_size(&path)?;
-                    let size_formatted = crate::file_ops::format_size(size_bytes);
+                    // Check if it's a backup file (ends with .tar.gz)
+                    if name_str.ends_with(".tar.gz") {
+                        let size_bytes = get_file_size(&path)?;
+                        let size_formatted = crate::file_ops::format_size(size_bytes);
 
-                    // Get creation time
-                    let metadata = entry.metadata().map_err(FileOpsError::Io)?;
-                    let created = metadata.created()
-                        .or_else(|_| metadata.modified())
-                        .unwrap_or_else(|_| SystemTime::now());
-                    let created_dt: DateTime<Utc> = created.into();
-                    let created_at = created_dt.to_rfc3339();
+                        // Get creation time
+                        let metadata = entry.metadata().map_err(FileOpsError::Io)?;
+                        let created = metadata.created()
+                            .or_else(|_| metadata.modified())
+                            .unwrap_or_else(|_| SystemTime::now());
+                        let created_dt: DateTime<Utc> = created.into();
+                        let created_at = created_dt.to_rfc3339();
 
-                    backups.push(BackupInfo {
-                        name: name_str.to_string(),
-                        path: path.to_string_lossy().to_string(),
-                        size_bytes,
-                        size_formatted,
-                        created_at,
-                        save_name: save_name.to_string(),
-                    });
+                        backups.push(BackupInfo {
+                            name: name_str.to_string(),
+                            path: path.to_string_lossy().to_string(),
+                            size_bytes,
+                            size_formatted,
+                            created_at,
+                            save_name: save_name.to_string(),
+                        });
+                    }
                 }
             }
         }
@@ -331,8 +347,8 @@ pub fn list_backups(save_name: &str) -> BackupResultT<Vec<BackupInfo>> {
 /// Gets detailed information about a specific backup.
 ///
 /// # Arguments
-/// * `save_name` - Name of the save
-/// * `backup_name` - Name of the backup directory
+/// * `save_name` - Relative path of the save (e.g., "sandbox/aaa")
+/// * `backup_name` - Name of the backup file (e.g., "aaa_2024-12-28_14-30-45.tar.gz")
 ///
 /// # Returns
 /// `BackupResultT<BackupInfo>` - Detailed backup information
@@ -348,7 +364,7 @@ pub fn get_backup_info(save_name: &str, backup_name: &str) -> BackupResultT<Back
         ));
     }
 
-    let size_bytes = get_dir_size(&backup_path)?;
+    let size_bytes = get_file_size(&backup_path)?;
     let size_formatted = crate::file_ops::format_size(size_bytes);
 
     let metadata = fs::metadata(&backup_path)
@@ -418,8 +434,8 @@ pub fn count_backups(save_name: &str) -> BackupResultT<usize> {
 /// Deletes a specific backup.
 ///
 /// # Arguments
-/// * `save_name` - Name of the save
-/// * `backup_name` - Name of the backup directory to delete
+/// * `save_name` - Relative path of the save (e.g., "sandbox/aaa")
+/// * `backup_name` - Name of the backup file to delete (e.g., "aaa_2024-12-28_14-30-45.tar.gz")
 ///
 /// # Returns
 /// `BackupResultT<()>` - Ok(()) on success
@@ -438,7 +454,7 @@ pub fn delete_backup(save_name: &str, backup_name: &str) -> BackupResultT<()> {
         ));
     }
 
-    delete_dir_recursive(&backup_path)?;
+    delete_file(&backup_path)?;
     Ok(())
 }
 
@@ -473,12 +489,13 @@ mod tests {
     #[test]
     fn test_generate_backup_name_format() {
         let name = generate_backup_name("Survival");
-        // Format: {SaveName}_{YYYY-MM-DD}_{HH-mm-ss}
-        assert!(name.starts_with("Survival_"));
+        // Format: {YYYY-MM-DD}_{HH-mm-ss}.tar.gz
+        assert!(name.ends_with(".tar.gz"));
+        assert!(name.contains("_")); // Has separator between date and time
         let parts: Vec<&str> = name.split('_').collect();
-        assert_eq!(parts.len(), 3);
-        assert!(parts[1].chars().filter(|&c| c == '-').count() == 2); // Date has 2 dashes
-        assert!(parts[2].chars().filter(|&c| c == '-').count() == 2); // Time has 2 dashes
+        assert_eq!(parts.len(), 2);
+        assert!(parts[0].chars().filter(|&c| c == '-').count() == 2); // Date has 2 dashes
+        assert!(parts[1].chars().filter(|&c| c == '-').count() == 2); // Time has 2 dashes
     }
 
     #[test]
@@ -489,26 +506,22 @@ mod tests {
     }
 
     #[test]
-    fn test_list_backup_dirs_empty() {
+    fn test_list_backup_files_empty() {
         let temp_dir = TempDir::new().unwrap();
-        let backups = list_backup_dirs(temp_dir.path()).unwrap();
+        let backups = list_backup_files(temp_dir.path()).unwrap();
         assert_eq!(backups.len(), 0);
     }
 
     #[test]
-    fn test_list_backup_dirs_with_backups() {
+    fn test_list_backup_files_with_backups() {
         let temp_dir = TempDir::new().unwrap();
-        let backup1 = temp_dir.path().join("Survival_2024-12-28_10-00-00");
-        let backup2 = temp_dir.path().join("Survival_2024-12-28_11-00-00");
+        let backup1 = temp_dir.path().join("Survival_2024-12-28_10-00-00.tar.gz");
+        let backup2 = temp_dir.path().join("Survival_2024-12-28_11-00-00.tar.gz");
 
-        fs::create_dir(&backup1).unwrap();
-        fs::create_dir(&backup2).unwrap();
+        File::create(&backup1).unwrap().write_all(b"data").unwrap();
+        File::create(&backup2).unwrap().write_all(b"data").unwrap();
 
-        // Create files to ensure directories have content
-        File::create(backup1.join("save.bin")).unwrap().write_all(b"data").unwrap();
-        File::create(backup2.join("save.bin")).unwrap().write_all(b"data").unwrap();
-
-        let backups = list_backup_dirs(temp_dir.path()).unwrap();
+        let backups = list_backup_files(temp_dir.path()).unwrap();
         assert_eq!(backups.len(), 2);
     }
 
@@ -524,8 +537,9 @@ mod tests {
         setup_test_config(save_base.path(), backup_base.path());
 
         let result = create_backup("Survival").unwrap();
-        assert!(result.backup_path.contains("Survival_"));
-        assert!(result.backup_name.starts_with("Survival_"));
+        assert!(result.backup_path.contains("Survival/"));
+        assert!(result.backup_name.ends_with(".tar.gz"));
+        assert!(result.backup_name.contains("_")); // Has date/time separator
         assert_eq!(result.retained_count, 1);
         assert_eq!(result.deleted_count, 0);
     }
@@ -546,11 +560,10 @@ mod tests {
     fn test_garbage_collection_with_retention_limit() {
         let temp_dir = TempDir::new().unwrap();
 
-        // Create 5 backup directories
+        // Create 5 backup tar.gz files
         for i in 0..5 {
-            let backup_path = temp_dir.path().join(format!("Survival_2024-12-28_{:02}-00-00", i));
-            fs::create_dir(&backup_path).unwrap();
-            File::create(backup_path.join("save.bin")).unwrap().write_all(b"data").unwrap();
+            let backup_path = temp_dir.path().join(format!("Survival_2024-12-28_{:02}-00-00.tar.gz", i));
+            File::create(&backup_path).unwrap().write_all(b"data").unwrap();
         }
 
         // Set retention to 3
@@ -560,7 +573,7 @@ mod tests {
         assert_eq!(deleted, 2);
 
         // Verify only 3 backups remain
-        let remaining = list_backup_dirs(temp_dir.path()).unwrap();
+        let remaining = list_backup_files(temp_dir.path()).unwrap();
         assert_eq!(remaining.len(), 3);
     }
 
@@ -568,11 +581,10 @@ mod tests {
     fn test_garbage_collection_no_deletion_needed() {
         let temp_dir = TempDir::new().unwrap();
 
-        // Create 2 backup directories
+        // Create 2 backup tar.gz files
         for i in 0..2 {
-            let backup_path = temp_dir.path().join(format!("Survival_2024-12-28_{:02}-00-00", i));
-            fs::create_dir(&backup_path).unwrap();
-            File::create(backup_path.join("save.bin")).unwrap().write_all(b"data").unwrap();
+            let backup_path = temp_dir.path().join(format!("Survival_2024-12-28_{:02}-00-00.tar.gz", i));
+            File::create(&backup_path).unwrap().write_all(b"data").unwrap();
         }
 
         // Set retention to 5 (more than existing)
@@ -582,7 +594,7 @@ mod tests {
         assert_eq!(deleted, 0);
 
         // Verify all backups remain
-        let remaining = list_backup_dirs(temp_dir.path()).unwrap();
+        let remaining = list_backup_files(temp_dir.path()).unwrap();
         assert_eq!(remaining.len(), 2);
     }
 
@@ -615,7 +627,8 @@ mod tests {
         let backups = list_backups("Survival").unwrap();
         assert_eq!(backups.len(), 1);
         assert_eq!(backups[0].save_name, "Survival");
-        assert!(backups[0].name.starts_with("Survival_"));
+        assert!(backups[0].name.ends_with(".tar.gz"));
+        assert!(backups[0].name.contains("_")); // Has date/time separator
         assert!(backups[0].size_bytes > 0);
         assert!(!backups[0].size_formatted.is_empty());
     }
@@ -634,10 +647,10 @@ mod tests {
         let backup_result = create_backup("Survival").unwrap();
         let backup_name = backup_result.backup_name;
 
-        // Verify the backup was actually created with files
+        // Verify the backup tar.gz file was created
         let backup_path = backup_base.path().join("Survival").join(&backup_name);
         assert!(backup_path.exists());
-        assert!(backup_path.join("save.bin").exists());
+        assert!(backup_name.ends_with(".tar.gz"));
 
         let info = get_backup_info("Survival", &backup_name).unwrap();
         assert_eq!(info.name, backup_name);

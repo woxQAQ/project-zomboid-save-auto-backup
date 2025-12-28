@@ -8,7 +8,7 @@
 use crate::backup::{get_save_backup_dir, BackupError};
 use crate::config as config_module;
 use crate::config::ConfigError;
-use crate::file_ops::{copy_dir_recursive, delete_dir_recursive, FileOpsError};
+use crate::file_ops::{create_tar_gz, delete_dir_recursive, extract_tar_gz, FileOpsError};
 use serde::{Deserialize, Serialize, Serializer};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -140,17 +140,18 @@ pub fn get_undo_snapshot_dir(backup_base_path: &Path, save_name: &str) -> PathBu
 /// Generates a timestamped undo snapshot name.
 ///
 /// # Format
-/// `undo_{YYYY-MM-DD}_{HH-mm-ss}`
+/// `undo_{YYYY-MM-DD}_{HH-mm-ss}.tar.gz`
 ///
 /// # Example
 /// ```no_run
+/// use tauri_app_lib::restore::generate_undo_snapshot_name;
 /// let name = generate_undo_snapshot_name();
-/// // Returns: "undo_2024-12-28_14-30-45"
+/// // Returns: "undo_2024-12-28_14-30-45.tar.gz"
 /// ```
 pub fn generate_undo_snapshot_name() -> String {
     let now = chrono::Utc::now();
     let timestamp = now.format("%Y-%m-%d_%H-%M-%S");
-    format!("undo_{}", timestamp)
+    format!("undo_{}.tar.gz", timestamp)
 }
 
 /// Creates an undo snapshot of the current save state.
@@ -163,7 +164,7 @@ pub fn generate_undo_snapshot_name() -> String {
 /// `RestoreResultT<UndoSnapshotInfo>` - Information about the created snapshot
 ///
 /// # Behavior
-/// - Creates a timestamped snapshot of the current save
+/// - Creates a compressed timestamped snapshot of the current save
 /// - Returns Ok(None) if save doesn't exist (nothing to snapshot)
 /// - If snapshot with same name exists, deletes it first before creating new one
 fn create_undo_snapshot(
@@ -193,14 +194,14 @@ fn create_undo_snapshot(
 
     // Delete existing snapshot if it exists (same timestamp scenario)
     if snapshot_path.exists() {
-        delete_dir_recursive(&snapshot_path)?;
+        crate::file_ops::delete_file(&snapshot_path)?;
     }
 
-    // Copy current save to snapshot location
-    copy_dir_recursive(save_path, &snapshot_path)?;
+    // Compress current save to snapshot location
+    create_tar_gz(save_path, &snapshot_path)?;
 
     // Get snapshot metadata
-    let size_bytes = crate::file_ops::get_dir_size(&snapshot_path)?;
+    let size_bytes = crate::file_ops::get_file_size(&snapshot_path)?;
     let size_formatted = crate::file_ops::format_size(size_bytes);
 
     let metadata = fs::metadata(&snapshot_path)
@@ -231,17 +232,17 @@ fn create_undo_snapshot(
 /// Restores a backup to the save directory with undo snapshot creation.
 ///
 /// # Arguments
-/// * `save_name` - Name of the save to restore
-/// * `backup_name` - Name of the backup to restore
+/// * `save_name` - Relative path of the save to restore (e.g., "sandbox/aaa")
+/// * `backup_name` - Name of the backup tar.gz file to restore (e.g., "aaa_2024-12-28_14-30-45.tar.gz")
 ///
 /// # Returns
 /// `RestoreResultT<RestoreResult>` - Information about the restore operation
 ///
 /// # Behavior
-/// 1. Validates the backup exists
+/// 1. Validates the backup file exists
 /// 2. Creates an "Undo snapshot" of the current save state (if it exists)
 /// 3. Clears the current save directory
-/// 4. Copies the backup contents to the save directory
+/// 4. Extracts the backup tar.gz file to the save directory
 ///
 /// # Safety
 /// - Creates undo snapshot before any destructive operations
@@ -258,18 +259,18 @@ pub fn restore_backup(save_name: &str, backup_name: &str) -> RestoreResultT<Rest
 
     let save_dir = save_path.join(save_name);
     let backup_save_dir = get_save_backup_dir(&backup_base_path, save_name);
-    let backup_dir = backup_save_dir.join(backup_name);
+    let backup_file = backup_save_dir.join(backup_name);
 
-    // Validate backup exists
-    if !backup_dir.exists() {
+    // Validate backup file exists
+    if !backup_file.exists() {
         return Err(RestoreError::BackupNotFound(
-            backup_dir.to_string_lossy().to_string(),
+            backup_file.to_string_lossy().to_string(),
         ));
     }
-    if !backup_dir.is_dir() {
+    if !backup_file.is_file() {
         return Err(RestoreError::BackupNotFound(format!(
-            "{} is not a directory",
-            backup_dir.display()
+            "{} is not a file",
+            backup_file.display()
         )));
     }
 
@@ -282,13 +283,13 @@ pub fn restore_backup(save_name: &str, backup_name: &str) -> RestoreResultT<Rest
         delete_dir_recursive(&save_dir)?;
     }
 
-    // Restore from backup (copy_dir_recursive creates the destination directory)
-    copy_dir_recursive(&backup_dir, &save_dir)?;
+    // Extract the backup tar.gz to save directory
+    extract_tar_gz(&backup_file, &save_dir)?;
 
     Ok(RestoreResult {
         save_path: save_dir.to_string_lossy().to_string(),
         save_name: save_name.to_string(),
-        backup_path: backup_dir.to_string_lossy().to_string(),
+        backup_path: backup_file.to_string_lossy().to_string(),
         backup_name: backup_name.to_string(),
         undo_snapshot_path: undo_snapshot.as_ref().map(|u| u.path.clone()),
         has_undo_snapshot: undo_snapshot.is_some(),
@@ -298,7 +299,7 @@ pub fn restore_backup(save_name: &str, backup_name: &str) -> RestoreResultT<Rest
 /// Lists all undo snapshots for a specific save.
 ///
 /// # Arguments
-/// * `save_name` - Name of the save
+/// * `save_name` - Relative path of the save (e.g., "sandbox/aaa")
 ///
 /// # Returns
 /// `RestoreResultT<Vec<UndoSnapshotInfo>>` - List of undo snapshots sorted by creation time (newest first)
@@ -317,28 +318,32 @@ pub fn list_undo_snapshots(save_name: &str) -> RestoreResultT<Vec<UndoSnapshotIn
         let entry = entry.map_err(FileOpsError::Io)?;
         let path = entry.path();
 
-        if path.is_dir() {
+        // Only process .tar.gz files
+        if path.is_file() {
             if let Some(name) = path.file_name() {
                 if let Some(name_str) = name.to_str() {
-                    let size_bytes = crate::file_ops::get_dir_size(&path)?;
-                    let size_formatted = crate::file_ops::format_size(size_bytes);
+                    // Check if it's an undo snapshot file (starts with "undo_" and ends with ".tar.gz")
+                    if name_str.starts_with("undo_") && name_str.ends_with(".tar.gz") {
+                        let size_bytes = crate::file_ops::get_file_size(&path)?;
+                        let size_formatted = crate::file_ops::format_size(size_bytes);
 
-                    let metadata = entry.metadata().map_err(FileOpsError::Io)?;
-                    let created = metadata
-                        .created()
-                        .or_else(|_| metadata.modified())
-                        .unwrap_or_else(|_| std::time::SystemTime::now());
-                    let created_dt: chrono::DateTime<chrono::Utc> = created.into();
-                    let created_at = created_dt.to_rfc3339();
+                        let metadata = entry.metadata().map_err(FileOpsError::Io)?;
+                        let created = metadata
+                            .created()
+                            .or_else(|_| metadata.modified())
+                            .unwrap_or_else(|_| std::time::SystemTime::now());
+                        let created_dt: chrono::DateTime<chrono::Utc> = created.into();
+                        let created_at = created_dt.to_rfc3339();
 
-                    snapshots.push(UndoSnapshotInfo {
-                        name: name_str.to_string(),
-                        path: path.to_string_lossy().to_string(),
-                        size_bytes,
-                        size_formatted,
-                        created_at,
-                        save_name: save_name.to_string(),
-                    });
+                        snapshots.push(UndoSnapshotInfo {
+                            name: name_str.to_string(),
+                            path: path.to_string_lossy().to_string(),
+                            size_bytes,
+                            size_formatted,
+                            created_at,
+                            save_name: save_name.to_string(),
+                        });
+                    }
                 }
             }
         }
@@ -353,16 +358,16 @@ pub fn list_undo_snapshots(save_name: &str) -> RestoreResultT<Vec<UndoSnapshotIn
 /// Restores from an undo snapshot.
 ///
 /// # Arguments
-/// * `save_name` - Name of the save
-/// * `snapshot_name` - Name of the undo snapshot to restore from
+/// * `save_name` - Relative path of the save (e.g., "sandbox/aaa")
+/// * `snapshot_name` - Name of the undo snapshot tar.gz file to restore from (e.g., "undo_2024-12-28_14-30-45.tar.gz")
 ///
 /// # Returns
 /// `RestoreResultT<RestoreResult>` - Information about the restore operation
 ///
 /// # Behavior
-/// 1. Validates the undo snapshot exists
+/// 1. Validates the undo snapshot tar.gz file exists
 /// 2. Clears the current save directory
-/// 3. Copies the snapshot contents to the save directory
+/// 3. Extracts the snapshot tar.gz file to the save directory
 pub fn restore_from_undo_snapshot(
     save_name: &str,
     snapshot_name: &str,
@@ -373,18 +378,18 @@ pub fn restore_from_undo_snapshot(
 
     let save_dir = save_path.join(save_name);
     let undo_snapshot_dir = get_undo_snapshot_dir(&backup_base_path, save_name);
-    let snapshot_path = undo_snapshot_dir.join(snapshot_name);
+    let snapshot_file = undo_snapshot_dir.join(snapshot_name);
 
-    // Validate snapshot exists
-    if !snapshot_path.exists() {
+    // Validate snapshot file exists
+    if !snapshot_file.exists() {
         return Err(RestoreError::BackupNotFound(
-            snapshot_path.to_string_lossy().to_string(),
+            snapshot_file.to_string_lossy().to_string(),
         ));
     }
-    if !snapshot_path.is_dir() {
+    if !snapshot_file.is_file() {
         return Err(RestoreError::BackupNotFound(format!(
-            "{} is not a directory",
-            snapshot_path.display()
+            "{} is not a file",
+            snapshot_file.display()
         )));
     }
 
@@ -393,13 +398,13 @@ pub fn restore_from_undo_snapshot(
         delete_dir_recursive(&save_dir)?;
     }
 
-    // Restore from snapshot (copy_dir_recursive creates the destination directory)
-    copy_dir_recursive(&snapshot_path, &save_dir)?;
+    // Extract the snapshot tar.gz to save directory
+    extract_tar_gz(&snapshot_file, &save_dir)?;
 
     Ok(RestoreResult {
         save_path: save_dir.to_string_lossy().to_string(),
         save_name: save_name.to_string(),
-        backup_path: snapshot_path.to_string_lossy().to_string(),
+        backup_path: snapshot_file.to_string_lossy().to_string(),
         backup_name: snapshot_name.to_string(),
         undo_snapshot_path: None,
         has_undo_snapshot: false,
@@ -409,8 +414,8 @@ pub fn restore_from_undo_snapshot(
 /// Deletes an undo snapshot.
 ///
 /// # Arguments
-/// * `save_name` - Name of the save
-/// * `snapshot_name` - Name of the undo snapshot to delete
+/// * `save_name` - Relative path of the save (e.g., "sandbox/aaa")
+/// * `snapshot_name` - Name of the undo snapshot tar.gz file to delete (e.g., "undo_2024-12-28_14-30-45.tar.gz")
 ///
 /// # Returns
 /// `RestoreResultT<()>` - Ok(()) on success
@@ -419,15 +424,15 @@ pub fn delete_undo_snapshot(save_name: &str, snapshot_name: &str) -> RestoreResu
     let backup_base_path = config.get_backup_path()?;
 
     let undo_snapshot_dir = get_undo_snapshot_dir(&backup_base_path, save_name);
-    let snapshot_path = undo_snapshot_dir.join(snapshot_name);
+    let snapshot_file = undo_snapshot_dir.join(snapshot_name);
 
-    if !snapshot_path.exists() {
+    if !snapshot_file.exists() {
         return Err(RestoreError::BackupNotFound(
-            snapshot_path.to_string_lossy().to_string(),
+            snapshot_file.to_string_lossy().to_string(),
         ));
     }
 
-    delete_dir_recursive(&snapshot_path)?;
+    crate::file_ops::delete_file(&snapshot_file)?;
 
     Ok(())
 }
@@ -557,12 +562,11 @@ mod tests {
         // Verify save was restored
         assert_eq!(read_save_content(&save_dir), original_content);
 
-        // Verify undo snapshot exists
+        // Verify undo snapshot tar.gz file exists (can't read directly from tar.gz)
         let undo_path = restore_result.undo_snapshot_path.unwrap();
-        let undo_dir = Path::new(&undo_path);
-        assert!(undo_dir.exists());
-        let undo_content = read_save_content(undo_dir);
-        assert_eq!(undo_content, "modified game state");
+        let undo_file = Path::new(&undo_path);
+        assert!(undo_file.exists());
+        assert!(undo_path.ends_with(".tar.gz"));
     }
 
     #[test]
