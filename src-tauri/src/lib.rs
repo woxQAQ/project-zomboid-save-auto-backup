@@ -416,6 +416,32 @@ fn generate_backup_name_command(save_name: String) -> String {
     backup::generate_backup_name(&save_name)
 }
 
+/// Tauri command: Deletes a specific backup.
+///
+/// # Arguments
+/// * `saveName` - Name of the save
+/// * `backupName` - Name of the backup directory to delete
+///
+/// # Returns
+/// `BackupResultT<()>` - Ok(()) on success
+///
+/// # Safety
+/// This is a destructive operation. Frontend should confirm with user before calling.
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// await invoke('delete_backup', {
+///   saveName: 'Survival',
+///   backupName: 'Survival_2024-12-28_14-30-45'
+/// });
+/// ```
+#[tauri::command]
+fn delete_backup_command(save_name: String, backup_name: String) -> BackupResultT<()> {
+    backup::delete_backup(&save_name, &backup_name)
+}
+
 // ============================================================================
 // Config Commands (CORE-02)
 // ============================================================================
@@ -712,6 +738,7 @@ pub fn run() {
             list_saves_with_backups_command,
             count_backups_command,
             generate_backup_name_command,
+            delete_backup_command,
             // Restore commands (CORE-04)
             restore_backup_command,
             list_undo_snapshots_command,

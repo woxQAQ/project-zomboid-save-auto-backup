@@ -415,6 +415,33 @@ pub fn count_backups(save_name: &str) -> BackupResultT<usize> {
     Ok(backups.len())
 }
 
+/// Deletes a specific backup.
+///
+/// # Arguments
+/// * `save_name` - Name of the save
+/// * `backup_name` - Name of the backup directory to delete
+///
+/// # Returns
+/// `BackupResultT<()>` - Ok(()) on success
+///
+/// # Safety
+/// This is a destructive operation. Frontend should confirm with user before calling.
+pub fn delete_backup(save_name: &str, backup_name: &str) -> BackupResultT<()> {
+    let config = config_module::load_config()?;
+    let backup_base_path = config.get_backup_path()?;
+    let save_backup_dir = get_save_backup_dir(&backup_base_path, save_name);
+    let backup_path = save_backup_dir.join(backup_name);
+
+    if !backup_path.exists() {
+        return Err(BackupError::BackupNotFound(
+            format!("{}/{}", save_name, backup_name)
+        ));
+    }
+
+    delete_dir_recursive(&backup_path)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -756,5 +783,77 @@ mod tests {
 
         let backups = list_backups("Survival").unwrap();
         assert_eq!(backups.len(), 3);
+    }
+
+    #[test]
+    #[serial]
+    fn test_delete_backup_success() {
+        let save_base = TempDir::new().unwrap();
+        let backup_base = TempDir::new().unwrap();
+
+        let save_dir = save_base.path().join("Survival");
+        create_test_save(&save_dir);
+
+        setup_test_config(save_base.path(), backup_base.path());
+
+        // Create a backup
+        let backup_result = create_backup("Survival").unwrap();
+        let backup_name = backup_result.backup_name;
+
+        // Verify backup exists
+        assert_eq!(count_backups("Survival").unwrap(), 1);
+
+        // Delete the backup
+        delete_backup("Survival", &backup_name).unwrap();
+
+        // Verify backup is deleted
+        assert_eq!(count_backups("Survival").unwrap(), 0);
+    }
+
+    #[test]
+    #[serial]
+    fn test_delete_backup_not_found() {
+        let save_base = TempDir::new().unwrap();
+        let backup_base = TempDir::new().unwrap();
+
+        setup_test_config(save_base.path(), backup_base.path());
+
+        let result = delete_backup("Survival", "NonExistent");
+        assert!(matches!(result, Err(BackupError::BackupNotFound(_))));
+    }
+
+    #[test]
+    #[serial]
+    fn test_delete_one_of_multiple_backups() {
+        let save_base = TempDir::new().unwrap();
+        let backup_base = TempDir::new().unwrap();
+
+        let save_dir = save_base.path().join("Survival");
+        create_test_save(&save_dir);
+
+        setup_test_config(save_base.path(), backup_base.path());
+
+        // Create multiple backups
+        let backup1 = create_backup("Survival").unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let backup2 = create_backup("Survival").unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let backup3 = create_backup("Survival").unwrap();
+
+        // Verify 3 backups exist
+        assert_eq!(count_backups("Survival").unwrap(), 3);
+
+        // Delete middle backup
+        delete_backup("Survival", &backup2.backup_name).unwrap();
+
+        // Verify 2 backups remain
+        assert_eq!(count_backups("Survival").unwrap(), 2);
+
+        // Verify the correct backups remain
+        let backups = list_backups("Survival").unwrap();
+        assert_eq!(backups.len(), 2);
+        assert!(backups.iter().any(|b| b.name == backup1.backup_name));
+        assert!(backups.iter().any(|b| b.name == backup3.backup_name));
+        assert!(!backups.iter().any(|b| b.name == backup2.backup_name));
     }
 }
