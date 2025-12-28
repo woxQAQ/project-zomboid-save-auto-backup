@@ -113,6 +113,10 @@ pub type BackupResultT<T> = Result<T, BackupError>;
 /// The backup file name contains only the timestamp, not the save name.
 /// The save name is already part of the directory structure.
 ///
+/// # Arguments
+/// * `_save_name` - Save name parameter kept for API compatibility, but not used
+///                 since the backup filename is now just a timestamp
+///
 /// # Example
 /// ```
 /// # use tauri_app_lib::backup::generate_backup_name;

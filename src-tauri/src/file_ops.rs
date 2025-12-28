@@ -400,7 +400,7 @@ pub fn show_in_file_manager(path: &Path) -> FileOpsResult<()> {
 /// - Creates parent directories if needed
 /// - Returns error if source doesn't exist
 /// - Returns error if destination already exists
-/// - Uses gzip compression level 6 (balanced speed/compression)
+/// - Uses default gzip compression (level 6) for balanced speed/compression ratio
 ///
 /// # Example
 /// ```no_run
