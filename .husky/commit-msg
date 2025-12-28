@@ -1,6 +1,4 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
 # Validate conventional commit format
 # Format: type(scope): description
 # Types: feat, fix, docs, style, refactor, perf, test, chore, build, ci, revert
