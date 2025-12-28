@@ -23,6 +23,7 @@
             rustc
             cargo
             nodejs_20
+            clippy
             nushell
             pkg-config
             openssl

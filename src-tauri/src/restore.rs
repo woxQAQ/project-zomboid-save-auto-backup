@@ -5,10 +5,10 @@
 //! - Pre-restore backup of current save state
 //! - Atomic restore operations with rollback capability
 
-use crate::backup::{get_save_backup_dir, BackupError, BackupResultT};
+use crate::backup::{get_save_backup_dir, BackupError};
 use crate::config as config_module;
 use crate::config::ConfigError;
-use crate::file_ops::{copy_dir_recursive, delete_dir_recursive, FileOpsError, FileOpsResult};
+use crate::file_ops::{copy_dir_recursive, delete_dir_recursive, FileOpsError};
 use serde::{Deserialize, Serialize, Serializer};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -184,7 +184,7 @@ fn create_undo_snapshot(
     // Create undo snapshot directory if it doesn't exist
     if !undo_snapshot_dir.exists() {
         fs::create_dir_all(undo_snapshot_dir)
-            .map_err(|e| FileOpsError::Io(e))?;
+            .map_err(FileOpsError::Io)?;
     }
 
     // Generate snapshot name and path
@@ -204,7 +204,7 @@ fn create_undo_snapshot(
     let size_formatted = crate::file_ops::format_size(size_bytes);
 
     let metadata = fs::metadata(&snapshot_path)
-        .map_err(|e| FileOpsError::Io(e))?;
+        .map_err(FileOpsError::Io)?;
     let created = metadata
         .created()
         .or_else(|_| metadata.modified())
@@ -313,8 +313,8 @@ pub fn list_undo_snapshots(save_name: &str) -> RestoreResultT<Vec<UndoSnapshotIn
 
     let mut snapshots = Vec::new();
 
-    for entry in fs::read_dir(&undo_snapshot_dir).map_err(|e| FileOpsError::Io(e))? {
-        let entry = entry.map_err(|e| FileOpsError::Io(e))?;
+    for entry in fs::read_dir(&undo_snapshot_dir).map_err(FileOpsError::Io)? {
+        let entry = entry.map_err(FileOpsError::Io)?;
         let path = entry.path();
 
         if path.is_dir() {
@@ -323,7 +323,7 @@ pub fn list_undo_snapshots(save_name: &str) -> RestoreResultT<Vec<UndoSnapshotIn
                     let size_bytes = crate::file_ops::get_dir_size(&path)?;
                     let size_formatted = crate::file_ops::format_size(size_bytes);
 
-                    let metadata = entry.metadata().map_err(|e| FileOpsError::Io(e))?;
+                    let metadata = entry.metadata().map_err(FileOpsError::Io)?;
                     let created = metadata
                         .created()
                         .or_else(|_| metadata.modified())
@@ -435,7 +435,7 @@ pub fn delete_undo_snapshot(save_name: &str, snapshot_name: &str) -> RestoreResu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backup::{create_backup, generate_backup_name};
+    use crate::backup::create_backup;
     use crate::config as config_module;
     use crate::config::Config;
     use serial_test::serial;

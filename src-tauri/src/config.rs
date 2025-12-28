@@ -250,7 +250,7 @@ pub fn load_config() -> ConfigResult<Config> {
     }
 
     let content = fs::read_to_string(&config_path)
-        .map_err(|e| FileOpsError::Io(e))?;
+        .map_err(FileOpsError::Io)?;
 
     let config: Config = serde_json::from_str(&content)?;
 
@@ -275,7 +275,7 @@ pub fn save_config(config: &Config) -> ConfigResult<()> {
     // Create config directory if it doesn't exist
     if let Some(parent) = config_path.parent() {
         fs::create_dir_all(parent)
-            .map_err(|e| FileOpsError::Io(e))?;
+            .map_err(FileOpsError::Io)?;
     }
 
     // Serialize to formatted JSON
@@ -283,7 +283,7 @@ pub fn save_config(config: &Config) -> ConfigResult<()> {
 
     // Write to file
     fs::write(&config_path, json)
-        .map_err(|e| FileOpsError::Io(e))?;
+        .map_err(FileOpsError::Io)?;
 
     Ok(())
 }
@@ -334,9 +334,9 @@ pub fn list_save_directories() -> ConfigResult<Vec<String>> {
     let mut saves = Vec::new();
 
     for entry in fs::read_dir(&save_path)
-        .map_err(|e| FileOpsError::Io(e))?
+        .map_err(FileOpsError::Io)?
     {
-        let entry = entry.map_err(|e| FileOpsError::Io(e))?;
+        let entry = entry.map_err(FileOpsError::Io)?;
         let path = entry.path();
 
         if path.is_dir() {

@@ -6,7 +6,7 @@
 //! - Backup listing and metadata queries
 
 use crate::file_ops::{copy_dir_recursive, delete_dir_recursive, get_dir_size, FileOpsError, FileOpsResult};
-use crate::config::{Config, ConfigError};
+use crate::config::ConfigError;
 use crate::config as config_module;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize, Serializer};
@@ -165,7 +165,7 @@ pub fn create_backup(save_name: &str) -> BackupResultT<BackupResult> {
     let save_backup_dir = get_save_backup_dir(&backup_base_path, save_name);
     if !save_backup_dir.exists() {
         fs::create_dir_all(&save_backup_dir)
-            .map_err(|e| FileOpsError::Io(e))?;
+            .map_err(FileOpsError::Io)?;
     }
 
     // Generate backup name and path
@@ -290,9 +290,9 @@ pub fn list_backups(save_name: &str) -> BackupResultT<Vec<BackupInfo>> {
     let mut backups = Vec::new();
 
     for entry in fs::read_dir(&save_backup_dir)
-        .map_err(|e| FileOpsError::Io(e))?
+        .map_err(FileOpsError::Io)?
     {
-        let entry = entry.map_err(|e| FileOpsError::Io(e))?;
+        let entry = entry.map_err(FileOpsError::Io)?;
         let path = entry.path();
 
         if path.is_dir() {
@@ -302,7 +302,7 @@ pub fn list_backups(save_name: &str) -> BackupResultT<Vec<BackupInfo>> {
                     let size_formatted = crate::file_ops::format_size(size_bytes);
 
                     // Get creation time
-                    let metadata = entry.metadata().map_err(|e| FileOpsError::Io(e))?;
+                    let metadata = entry.metadata().map_err(FileOpsError::Io)?;
                     let created = metadata.created()
                         .or_else(|_| metadata.modified())
                         .unwrap_or_else(|_| SystemTime::now());
@@ -352,7 +352,7 @@ pub fn get_backup_info(save_name: &str, backup_name: &str) -> BackupResultT<Back
     let size_formatted = crate::file_ops::format_size(size_bytes);
 
     let metadata = fs::metadata(&backup_path)
-        .map_err(|e| FileOpsError::Io(e))?;
+        .map_err(FileOpsError::Io)?;
     let created = metadata.created()
         .or_else(|_| metadata.modified())
         .unwrap_or_else(|_| SystemTime::now());
@@ -384,9 +384,9 @@ pub fn list_saves_with_backups() -> BackupResultT<Vec<String>> {
     let mut saves = Vec::new();
 
     for entry in fs::read_dir(&backup_base_path)
-        .map_err(|e| FileOpsError::Io(e))?
+        .map_err(FileOpsError::Io)?
     {
-        let entry = entry.map_err(|e| FileOpsError::Io(e))?;
+        let entry = entry.map_err(FileOpsError::Io)?;
         let path = entry.path();
 
         if path.is_dir() {
@@ -418,10 +418,12 @@ pub fn count_backups(save_name: &str) -> BackupResultT<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::Config;
     use crate::config as config_module;
     use serial_test::serial;
     use std::fs::{self, File};
     use std::io::Write;
+    use std::path::Path;
     use tempfile::TempDir;
 
     /// Helper to create a test save directory with files

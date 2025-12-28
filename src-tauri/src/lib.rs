@@ -11,7 +11,7 @@ use auto_backup::{AutoBackupStatus, AutoBackupResultT};
 use backup::{BackupInfo, BackupResult, BackupResultT};
 use config::{Config, ConfigResult};
 use file_ops::FileOpsResult;
-use restore::{RestoreError, RestoreResult, RestoreResultT, UndoSnapshotInfo};
+use restore::{RestoreResult, RestoreResultT, UndoSnapshotInfo};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 

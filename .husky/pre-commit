@@ -1,9 +1,16 @@
 #!/bin/sh
 echo "Running pre-commit hooks..."
-echo "1. Running TypeScript type check..."
+
+echo "1. Running Rust clippy linter..."
+(cd "$(dirname -- "$0")/../src-tauri" && cargo clippy --all-targets --all-features --quiet 2>&1) | grep -E "^error:" && {
+  echo "❌ Clippy found errors. Please fix them before committing."
+  exit 1
+}
+
+echo "2. Running TypeScript type check..."
 pnpm exec tsc --noEmit
 
-echo "2. Running Biome linter and formatter check..."
+echo "3. Running Biome linter and formatter check..."
 pnpm exec biome check --write src/
 
 echo "Pre-commit checks passed!"
