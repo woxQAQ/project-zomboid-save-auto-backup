@@ -1,8 +1,10 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod config;
 mod file_ops;
 
+use config::{Config, ConfigResult};
 use file_ops::FileOpsResult;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -126,6 +128,168 @@ fn format_size(bytes: u64) -> String {
     file_ops::format_size(bytes)
 }
 
+// ============================================================================
+// Config Commands (CORE-02)
+// ============================================================================
+
+/// Tauri command: Loads the application configuration.
+///
+/// # Returns
+/// `ConfigResult<Config>` - Current configuration
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// const config = await invoke('load_config');
+/// console.log('Save path:', config.save_path);
+/// console.log('Retention count:', config.retention_count);
+/// ```
+#[tauri::command]
+fn load_config_command() -> ConfigResult<Config> {
+    config::load_config()
+}
+
+/// Tauri command: Saves the application configuration.
+///
+/// # Arguments
+/// * `config` - Configuration to save
+///
+/// # Returns
+/// `ConfigResult<()>` - Ok(()) on success
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// await invoke('save_config', {
+///   config: {
+///     save_path: '/path/to/saves',
+///     backup_path: '/path/to/backups',
+///     retention_count: 15
+///   }
+/// });
+/// ```
+#[tauri::command]
+fn save_config_command(config: Config) -> ConfigResult<()> {
+    config::save_config(&config)
+}
+
+/// Tauri command: Updates the save path in the configuration.
+///
+/// # Arguments
+/// * `savePath` - New save path (as string)
+///
+/// # Returns
+/// `ConfigResult<()>` - Ok(()) on success
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// await invoke('update_save_path', {
+///   savePath: '/custom/Zomboid/Saves'
+/// });
+/// ```
+#[tauri::command]
+fn update_save_path(save_path: String) -> ConfigResult<()> {
+    config::update_save_path(save_path)
+}
+
+/// Tauri command: Updates the backup path in the configuration.
+///
+/// # Arguments
+/// * `backupPath` - New backup path (as string)
+///
+/// # Returns
+/// `ConfigResult<()>` - Ok(()) on success
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// await invoke('update_backup_path', {
+///   backupPath: '/custom/ZomboidBackups'
+/// });
+/// ```
+#[tauri::command]
+fn update_backup_path(backup_path: String) -> ConfigResult<()> {
+    config::update_backup_path(backup_path)
+}
+
+/// Tauri command: Updates the backup retention count.
+///
+/// # Arguments
+/// * `count` - New retention count (must be >= 1)
+///
+/// # Returns
+/// `ConfigResult<()>` - Ok(()) on success
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// await invoke('update_retention_count', { count: 20 });
+/// ```
+#[tauri::command]
+fn update_retention_count(count: usize) -> ConfigResult<()> {
+    config::update_retention_count(count)
+}
+
+/// Tauri command: Lists all save directories in the Zomboid saves folder.
+///
+/// # Returns
+/// `ConfigResult<Vec<String>>` - List of save names
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// const saves = await invoke('list_save_directories');
+/// console.log('Available saves:', saves);
+/// // ["Survival", "Builder", "Adventure"]
+/// ```
+#[tauri::command]
+fn list_save_directories() -> ConfigResult<Vec<String>> {
+    config::list_save_directories()
+}
+
+/// Tauri command: Detects the default Zomboid save path for the current platform.
+///
+/// # Returns
+/// `FileOpsResult<String>` - Detected save path
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// const path = await invoke('detect_zomboid_save_path');
+/// console.log('Auto-detected path:', path);
+/// ```
+#[tauri::command]
+fn detect_zomboid_save_path() -> FileOpsResult<String> {
+    let path = config::detect_zomboid_save_path()?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// Tauri command: Gets the default backup storage path.
+///
+/// # Returns
+/// `FileOpsResult<String>` - Default backup path
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// const path = await invoke('get_default_backup_path');
+/// console.log('Default backup path:', path);
+/// ```
+#[tauri::command]
+fn get_default_backup_path() -> FileOpsResult<String> {
+    let path = config::get_default_backup_path()?;
+    Ok(path.to_string_lossy().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -135,7 +299,16 @@ pub fn run() {
             copy_dir_recursive,
             delete_dir_recursive,
             get_dir_size,
-            format_size
+            format_size,
+            // Config commands (CORE-02)
+            load_config_command,
+            save_config_command,
+            update_save_path,
+            update_backup_path,
+            update_retention_count,
+            list_save_directories,
+            detect_zomboid_save_path,
+            get_default_backup_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
