@@ -282,7 +282,7 @@ export const Dashboard: React.FC = () => {
       <AutoBackupControl selectedSave={selectedSave} showToast={showToast} />
 
       {/* Backup List */}
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <BackupList
           key={refreshKey}
           saveName={selectedSave}
