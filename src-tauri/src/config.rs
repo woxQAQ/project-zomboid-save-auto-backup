@@ -424,7 +424,7 @@ mod tests {
 
     #[test]
     fn test_save_and_load_config() {
-        let temp_dir = TempDir::new().unwrap();
+        let _temp_dir = TempDir::new().unwrap();
 
         // Create a custom config
         let original = Config {

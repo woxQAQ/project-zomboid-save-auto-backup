@@ -11,7 +11,6 @@ use crate::config as config_module;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize, Serializer};
 use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -121,32 +120,6 @@ pub fn generate_backup_name(save_name: &str) -> String {
     let now = Utc::now();
     let timestamp = now.format("%Y-%m-%d_%H-%M-%S");
     format!("{}_{}", save_name, timestamp)
-}
-
-/// Parses a backup name to extract the timestamp.
-///
-/// # Arguments
-/// * `backup_name` - Backup directory name
-///
-/// # Returns
-/// `Option<DateTime<Utc>>` - Parsed timestamp, or None if invalid format
-pub fn parse_backup_timestamp(backup_name: &str) -> Option<DateTime<Utc>> {
-    // Extract timestamp part (after the last underscore)
-    // Format: {SaveName}_{YYYY-MM-DD}_{HH-mm-ss}
-    let parts: Vec<&str> = backup_name.split('_').collect();
-    if parts.len() < 3 {
-        return None;
-    }
-
-    // Join the last two parts (date and time)
-    let date_part = parts.get(parts.len() - 2)?;
-    let time_part = parts.last()?;
-    let _timestamp_str = format!("{}:{}", date_part, time_part);
-
-    // Parse the timestamp
-    DateTime::parse_from_rfc3339(&format!("{}T{}Z", date_part, time_part.replace('-', ":")))
-        .ok()
-        .map(|dt| dt.with_timezone(&Utc))
 }
 
 /// Gets the backup directory for a specific save.
