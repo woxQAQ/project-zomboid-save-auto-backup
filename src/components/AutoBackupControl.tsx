@@ -15,15 +15,21 @@ interface AutoBackupStatus {
   started_at: string | null;
 }
 
+export type ToastType = "success" | "error" | "warning" | "info";
+
 interface AutoBackupControlProps {
   selectedSave: string | null;
+  showToast?: (message: string, type: ToastType) => void;
 }
 
 /**
  * AutoBackupControl component
  * Displays auto backup status and controls for the selected save
  */
-export const AutoBackupControl: React.FC<AutoBackupControlProps> = ({ selectedSave }) => {
+export const AutoBackupControl: React.FC<AutoBackupControlProps> = ({
+  selectedSave,
+  showToast: externalShowToast,
+}) => {
   const [status, setStatus] = useState<AutoBackupStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isTogglingService, setIsTogglingService] = useState(false);
@@ -32,6 +38,22 @@ export const AutoBackupControl: React.FC<AutoBackupControlProps> = ({ selectedSa
   const [showIntervalEdit, setShowIntervalEdit] = useState(false);
   const [isSavingInterval, setIsSavingInterval] = useState(false);
   const intervalInputRef = useRef<HTMLInputElement>(null);
+
+  // Format error message for display (truncate if too long)
+  const formatErrorMessage = useCallback((err: unknown): string => {
+    const errStr = String(err);
+    return errStr.length > 100 ? `${errStr.substring(0, 100)}...` : errStr;
+  }, []);
+
+  // Helper to show toast (if callback provided) or log to console
+  const notify = useCallback(
+    (message: string, type: ToastType = "info") => {
+      if (externalShowToast) {
+        externalShowToast(message, type);
+      }
+    },
+    [externalShowToast],
+  );
 
   // Load auto backup status
   const loadStatus = useCallback(async () => {
@@ -69,18 +91,32 @@ export const AutoBackupControl: React.FC<AutoBackupControlProps> = ({ selectedSa
     }
   }, [showIntervalEdit]);
 
+  // Format interval to human readable
+  const formatInterval = useCallback((seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const hours = Math.floor(mins / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) return `${days}d`;
+    if (hours > 0) return `${hours}h`;
+    return `${mins}m`;
+  }, []);
+
   // Start/Stop auto backup service
   const handleToggleService = async () => {
     try {
       setIsTogglingService(true);
       if (status?.is_running) {
         await invoke("stop_auto_backup");
+        notify("Auto backup service stopped", "success");
       } else {
         await invoke("start_auto_backup");
+        notify("Auto backup service started", "success");
       }
       await loadStatus();
     } catch (err) {
       console.error("Failed to toggle auto backup service:", err);
+      notify(`Failed to toggle service: ${formatErrorMessage(err)}`, "error");
     } finally {
       setIsTogglingService(false);
     }
@@ -95,12 +131,15 @@ export const AutoBackupControl: React.FC<AutoBackupControlProps> = ({ selectedSa
       const currentState = status?.saves[selectedSave]?.enabled ?? false;
       if (currentState) {
         await invoke("disable_auto_backup", { saveName: selectedSave });
+        notify(`Auto backup disabled for '${selectedSave}'`, "success");
       } else {
         await invoke("enable_auto_backup", { saveName: selectedSave });
+        notify(`Auto backup enabled for '${selectedSave}'`, "success");
       }
       await loadStatus();
     } catch (err) {
       console.error("Failed to toggle save auto backup:", err);
+      notify(`Failed to toggle auto backup: ${formatErrorMessage(err)}`, "error");
     } finally {
       setIsTogglingSave(false);
     }
@@ -112,13 +151,16 @@ export const AutoBackupControl: React.FC<AutoBackupControlProps> = ({ selectedSa
       setIsSavingInterval(true);
       const seconds = parseInt(intervalInput, 10);
       if (Number.isNaN(seconds) || seconds < 60 || seconds > 86400) {
+        notify("Interval must be between 60 and 86400 seconds (1 minute to 24 hours)", "warning");
         return;
       }
       await invoke("set_auto_backup_interval", { seconds });
       await loadStatus();
       setShowIntervalEdit(false);
+      notify(`Backup interval updated to ${formatInterval(seconds)}`, "success");
     } catch (err) {
       console.error("Failed to set interval:", err);
+      notify(`Failed to update interval: ${formatErrorMessage(err)}`, "error");
     } finally {
       setIsSavingInterval(false);
     }
@@ -139,17 +181,6 @@ export const AutoBackupControl: React.FC<AutoBackupControlProps> = ({ selectedSa
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     return `${diffDays}d ago`;
-  }, []);
-
-  // Format interval to human readable
-  const formatInterval = useCallback((seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const hours = Math.floor(mins / 60);
-    const days = Math.floor(hours / 24);
-
-    if (days > 0) return `${days}d`;
-    if (hours > 0) return `${hours}h`;
-    return `${mins}m`;
   }, []);
 
   // Calculate time until next backup

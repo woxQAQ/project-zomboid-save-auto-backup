@@ -279,7 +279,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Auto Backup Control */}
-      <AutoBackupControl selectedSave={selectedSave} />
+      <AutoBackupControl selectedSave={selectedSave} showToast={showToast} />
 
       {/* Backup List */}
       <div className="flex-1 min-h-0">
