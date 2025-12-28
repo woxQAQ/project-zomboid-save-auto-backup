@@ -286,6 +286,58 @@ pub fn format_size(bytes: u64) -> String {
     }
 }
 
+/// Normalizes a path for consistent string representation across platforms.
+///
+/// This ensures all path separators use the standard separator for the current platform,
+/// preventing mixed separators like backslashes and forward slashes on Windows.
+///
+/// # Arguments
+/// * `path` - Path to normalize
+///
+/// # Returns
+/// String with normalized path separators
+///
+/// # Example
+/// ```no_run
+/// use std::path::Path;
+/// use tauri_app_lib::file_ops::normalize_path_for_display;
+///
+/// let path = Path::new(r"C:\Users\test/path\to\file");
+/// let normalized = normalize_path_for_display(path);
+/// // On Windows: "C:\Users\test\path\to\file"
+/// ```
+pub fn normalize_path_for_display(path: &Path) -> String {
+    use std::path::Component;
+
+    // Rebuild path with proper separators
+    let mut result = String::new();
+    for comp in path.components() {
+        match comp {
+            Component::Prefix(p) => {
+                result.push_str(&p.as_os_str().to_string_lossy());
+            }
+            Component::RootDir => {
+                result.push(std::path::MAIN_SEPARATOR);
+            }
+            Component::Normal(s) => {
+                if !result.is_empty() && !result.ends_with(std::path::MAIN_SEPARATOR) {
+                    result.push(std::path::MAIN_SEPARATOR);
+                }
+                result.push_str(&s.to_string_lossy());
+            }
+            Component::CurDir | Component::ParentDir => {
+                // Skip . and .. components
+            }
+        }
+    }
+
+    if result.is_empty() {
+        path.display().to_string()
+    } else {
+        result
+    }
+}
+
 /// Opens the parent directory of the given path in the system file manager.
 ///
 /// # Arguments

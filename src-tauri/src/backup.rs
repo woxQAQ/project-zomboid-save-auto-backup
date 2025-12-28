@@ -5,9 +5,9 @@
 //! - Garbage collection for old backups based on retention policy
 //! - Backup listing and metadata queries
 
-use crate::file_ops::{create_tar_gz, delete_file, get_file_size, FileOpsError, FileOpsResult};
-use crate::config::ConfigError;
 use crate::config as config_module;
+use crate::config::ConfigError;
+use crate::file_ops::{create_tar_gz, delete_file, get_file_size, FileOpsError, FileOpsResult};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize, Serializer};
 use std::fs;
@@ -77,7 +77,9 @@ impl std::fmt::Display for BackupError {
             BackupError::FileOp(err) => write!(f, "File operation error: {}", err),
             BackupError::Config(err) => write!(f, "Config error: {}", err),
             BackupError::SaveNotFound(name) => write!(f, "Save directory not found: {}", name),
-            BackupError::InvalidBackupName(name) => write!(f, "Invalid backup name format: {}", name),
+            BackupError::InvalidBackupName(name) => {
+                write!(f, "Invalid backup name format: {}", name)
+            }
             BackupError::BackupNotFound(name) => write!(f, "Backup not found: {}", name),
         }
     }
@@ -169,15 +171,17 @@ pub fn create_backup(save_name: &str) -> BackupResultT<BackupResult> {
         return Err(BackupError::SaveNotFound(save_name.to_string()));
     }
     if !save_dir.is_dir() {
-        return Err(BackupError::SaveNotFound(format!("{} is not a directory", save_name)));
+        return Err(BackupError::SaveNotFound(format!(
+            "{} is not a directory",
+            save_name
+        )));
     }
 
     // Create backup base directory if it doesn't exist
     // Use the relative path as the backup directory structure
     let save_backup_dir = get_save_backup_dir(&backup_base_path, save_name);
     if !save_backup_dir.exists() {
-        fs::create_dir_all(&save_backup_dir)
-            .map_err(FileOpsError::Io)?;
+        fs::create_dir_all(&save_backup_dir).map_err(FileOpsError::Io)?;
     }
 
     // Generate backup name and path (backup_name uses only save leaf name)
@@ -192,7 +196,7 @@ pub fn create_backup(save_name: &str) -> BackupResultT<BackupResult> {
     let (retained, deleted) = garbage_collection(&save_backup_dir, retention_count)?;
 
     Ok(BackupResult {
-        backup_path: backup_path.to_string_lossy().to_string(),
+        backup_path: crate::file_ops::normalize_path_for_display(&backup_path),
         backup_name,
         retained_count: retained,
         deleted_count: deleted,
@@ -212,7 +216,10 @@ pub fn create_backup(save_name: &str) -> BackupResultT<BackupResult> {
 /// - Lists all backup tar.gz files sorted by creation time (newest first)
 /// - Keeps the newest `retention_count` backups
 /// - Deletes older backups
-fn garbage_collection(save_backup_dir: &Path, retention_count: usize) -> FileOpsResult<(usize, usize)> {
+fn garbage_collection(
+    save_backup_dir: &Path,
+    retention_count: usize,
+) -> FileOpsResult<(usize, usize)> {
     let mut backups = list_backup_files(save_backup_dir)?;
 
     // Sort by creation time (newest first)
@@ -270,7 +277,8 @@ fn list_backup_files(save_backup_dir: &Path) -> FileOpsResult<Vec<BackupFile>> {
                     // Check if it's a backup file (ends with .tar.gz)
                     if name_str.ends_with(".tar.gz") {
                         let metadata = entry.metadata()?;
-                        let created = metadata.created()
+                        let created = metadata
+                            .created()
                             .or_else(|_| metadata.modified())
                             .unwrap_or_else(|_| SystemTime::now());
 
@@ -305,9 +313,7 @@ pub fn list_backups(save_name: &str) -> BackupResultT<Vec<BackupInfo>> {
 
     let mut backups = Vec::new();
 
-    for entry in fs::read_dir(&save_backup_dir)
-        .map_err(FileOpsError::Io)?
-    {
+    for entry in fs::read_dir(&save_backup_dir).map_err(FileOpsError::Io)? {
         let entry = entry.map_err(FileOpsError::Io)?;
         let path = entry.path();
 
@@ -322,15 +328,15 @@ pub fn list_backups(save_name: &str) -> BackupResultT<Vec<BackupInfo>> {
 
                         // Get creation time
                         let metadata = entry.metadata().map_err(FileOpsError::Io)?;
-                        let created = metadata.created()
+                        let created = metadata
+                            .created()
                             .or_else(|_| metadata.modified())
                             .unwrap_or_else(|_| SystemTime::now());
                         let created_dt: DateTime<Utc> = created.into();
                         let created_at = created_dt.to_rfc3339();
-
                         backups.push(BackupInfo {
                             name: name_str.to_string(),
-                            path: path.to_string_lossy().to_string(),
+                            path: crate::file_ops::normalize_path_for_display(&path),
                             size_bytes,
                             size_formatted,
                             created_at,
@@ -363,17 +369,18 @@ pub fn get_backup_info(save_name: &str, backup_name: &str) -> BackupResultT<Back
     let backup_path = save_backup_dir.join(backup_name);
 
     if !backup_path.exists() {
-        return Err(BackupError::BackupNotFound(
-            format!("{}/{}", save_name, backup_name)
-        ));
+        return Err(BackupError::BackupNotFound(format!(
+            "{}/{}",
+            save_name, backup_name
+        )));
     }
 
     let size_bytes = get_file_size(&backup_path)?;
     let size_formatted = crate::file_ops::format_size(size_bytes);
 
-    let metadata = fs::metadata(&backup_path)
-        .map_err(FileOpsError::Io)?;
-    let created = metadata.created()
+    let metadata = fs::metadata(&backup_path).map_err(FileOpsError::Io)?;
+    let created = metadata
+        .created()
         .or_else(|_| metadata.modified())
         .unwrap_or_else(|_| SystemTime::now());
     let created_dt: DateTime<Utc> = created.into();
@@ -381,7 +388,7 @@ pub fn get_backup_info(save_name: &str, backup_name: &str) -> BackupResultT<Back
 
     Ok(BackupInfo {
         name: backup_name.to_string(),
-        path: backup_path.to_string_lossy().to_string(),
+        path: crate::file_ops::normalize_path_for_display(&backup_path),
         size_bytes,
         size_formatted,
         created_at,
@@ -403,9 +410,7 @@ pub fn list_saves_with_backups() -> BackupResultT<Vec<String>> {
 
     let mut saves = Vec::new();
 
-    for entry in fs::read_dir(&backup_base_path)
-        .map_err(FileOpsError::Io)?
-    {
+    for entry in fs::read_dir(&backup_base_path).map_err(FileOpsError::Io)? {
         let entry = entry.map_err(FileOpsError::Io)?;
         let path = entry.path();
 
@@ -453,9 +458,10 @@ pub fn delete_backup(save_name: &str, backup_name: &str) -> BackupResultT<()> {
     let backup_path = save_backup_dir.join(backup_name);
 
     if !backup_path.exists() {
-        return Err(BackupError::BackupNotFound(
-            format!("{}/{}", save_name, backup_name)
-        ));
+        return Err(BackupError::BackupNotFound(format!(
+            "{}/{}",
+            save_name, backup_name
+        )));
     }
 
     delete_file(&backup_path)?;
@@ -465,8 +471,8 @@ pub fn delete_backup(save_name: &str, backup_name: &str) -> BackupResultT<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Config;
     use crate::config as config_module;
+    use crate::config::Config;
     use serial_test::serial;
     use std::fs::{self, File};
     use std::io::Write;
@@ -476,9 +482,18 @@ mod tests {
     /// Helper to create a test save directory with files
     fn create_test_save(save_dir: &Path) {
         fs::create_dir_all(save_dir.join("map")).unwrap();
-        File::create(save_dir.join("save.bin")).unwrap().write_all(b"game state").unwrap();
-        File::create(save_dir.join("map/pchunk_0_0.dat")).unwrap().write_all(b"map data").unwrap();
-        File::create(save_dir.join("map/pchunk_0_1.dat")).unwrap().write_all(b"more map").unwrap();
+        File::create(save_dir.join("save.bin"))
+            .unwrap()
+            .write_all(b"game state")
+            .unwrap();
+        File::create(save_dir.join("map/pchunk_0_0.dat"))
+            .unwrap()
+            .write_all(b"map data")
+            .unwrap();
+        File::create(save_dir.join("map/pchunk_0_1.dat"))
+            .unwrap()
+            .write_all(b"more map")
+            .unwrap();
     }
 
     /// Helper to setup test config
@@ -566,8 +581,13 @@ mod tests {
 
         // Create 5 backup tar.gz files
         for i in 0..5 {
-            let backup_path = temp_dir.path().join(format!("Survival_2024-12-28_{:02}-00-00.tar.gz", i));
-            File::create(&backup_path).unwrap().write_all(b"data").unwrap();
+            let backup_path = temp_dir
+                .path()
+                .join(format!("Survival_2024-12-28_{:02}-00-00.tar.gz", i));
+            File::create(&backup_path)
+                .unwrap()
+                .write_all(b"data")
+                .unwrap();
         }
 
         // Set retention to 3
@@ -587,8 +607,13 @@ mod tests {
 
         // Create 2 backup tar.gz files
         for i in 0..2 {
-            let backup_path = temp_dir.path().join(format!("Survival_2024-12-28_{:02}-00-00.tar.gz", i));
-            File::create(&backup_path).unwrap().write_all(b"data").unwrap();
+            let backup_path = temp_dir
+                .path()
+                .join(format!("Survival_2024-12-28_{:02}-00-00.tar.gz", i));
+            File::create(&backup_path)
+                .unwrap()
+                .write_all(b"data")
+                .unwrap();
         }
 
         // Set retention to 5 (more than existing)

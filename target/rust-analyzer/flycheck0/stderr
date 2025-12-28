@@ -1,0 +1,106 @@
+   0.441896292s  INFO prepare_target{force=false package_id=tauri-app v0.1.0 (/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri) target="tauri_app_lib"}: cargo::core::compiler::fingerprint: fingerprint error for tauri-app v0.1.0 (/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri)/Check { test: false }/TargetInner { ..: lib_target("tauri_app_lib", ["staticlib", "cdylib", "rlib"], "/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri/src/lib.rs", Edition2021) }
+   0.441918583s  INFO prepare_target{force=false package_id=tauri-app v0.1.0 (/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri) target="tauri_app_lib"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri/target/debug/.fingerprint/tauri-app-4c01600e47576289/lib-tauri_app_lib`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: <E as anyhow::context::ext::StdError>::ext_context
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: cargo::core::compiler::build_runner::BuildRunner::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: cargo::cli::Exec::exec
+  13: cargo::cli::main
+  14: cargo::main
+  15: std::sys::backtrace::__rust_begin_short_backtrace
+  16: std::rt::lang_start::{{closure}}
+  17: std::rt::lang_start_internal
+  18: _main
+   0.558311875s  INFO prepare_target{force=false package_id=tauri-app v0.1.0 (/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri) target="tauri_app_lib"}: cargo::core::compiler::fingerprint: fingerprint error for tauri-app v0.1.0 (/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri)/Check { test: true }/TargetInner { ..: lib_target("tauri_app_lib", ["staticlib", "cdylib", "rlib"], "/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri/src/lib.rs", Edition2021) }
+   0.558329417s  INFO prepare_target{force=false package_id=tauri-app v0.1.0 (/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri) target="tauri_app_lib"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri/target/debug/.fingerprint/tauri-app-f9d49fdeab94e8e1/test-lib-tauri_app_lib`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: <E as anyhow::context::ext::StdError>::ext_context
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: cargo::core::compiler::build_runner::BuildRunner::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: cargo::cli::Exec::exec
+  13: cargo::cli::main
+  14: cargo::main
+  15: std::sys::backtrace::__rust_begin_short_backtrace
+  16: std::rt::lang_start::{{closure}}
+  17: std::rt::lang_start_internal
+  18: _main
+   0.561617542s  INFO prepare_target{force=false package_id=tauri-app v0.1.0 (/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri) target="tauri-app"}: cargo::core::compiler::fingerprint: fingerprint error for tauri-app v0.1.0 (/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri)/Check { test: false }/TargetInner { name: "tauri-app", doc: true, ..: with_path("/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri/src/main.rs", Edition2021) }
+   0.561629917s  INFO prepare_target{force=false package_id=tauri-app v0.1.0 (/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri) target="tauri-app"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri/target/debug/.fingerprint/tauri-app-50ae33bb30ffb1ac/bin-tauri-app`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: <E as anyhow::context::ext::StdError>::ext_context
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: cargo::core::compiler::build_runner::BuildRunner::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: cargo::cli::Exec::exec
+  13: cargo::cli::main
+  14: cargo::main
+  15: std::sys::backtrace::__rust_begin_short_backtrace
+  16: std::rt::lang_start::{{closure}}
+  17: std::rt::lang_start_internal
+  18: _main
+   0.562549250s  INFO prepare_target{force=false package_id=tauri-app v0.1.0 (/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri) target="tauri-app"}: cargo::core::compiler::fingerprint: fingerprint error for tauri-app v0.1.0 (/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri)/Check { test: true }/TargetInner { name: "tauri-app", doc: true, ..: with_path("/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri/src/main.rs", Edition2021) }
+   0.562556083s  INFO prepare_target{force=false package_id=tauri-app v0.1.0 (/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri) target="tauri-app"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri/target/debug/.fingerprint/tauri-app-3797a40f6d672802/test-bin-tauri-app`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: <E as anyhow::context::ext::StdError>::ext_context
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: cargo::core::compiler::build_runner::BuildRunner::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: cargo::cli::Exec::exec
+  13: cargo::cli::main
+  14: cargo::main
+  15: std::sys::backtrace::__rust_begin_short_backtrace
+  16: std::rt::lang_start::{{closure}}
+  17: std::rt::lang_start_internal
+  18: _main
+    Checking tauri-app v0.1.0 (/Users/woxqaq/github-repos/project-zombiod-save-auto-backup/src-tauri)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.18s

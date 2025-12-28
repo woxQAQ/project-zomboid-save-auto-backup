@@ -13,7 +13,7 @@ interface BackupInfo {
   size_bytes: number;
   size_formatted: string;
   created_at: string;
-  backup_path: string;
+  path: string;
 }
 
 interface BackupItem {
@@ -91,7 +91,7 @@ export const BackupList: React.FC<BackupListProps> = ({
         sizeFormatted: info.size_formatted,
         createdAt: formatDateTime(info.created_at),
         timeAgo: formatTimeAgo(info.created_at),
-        backupPath: info.backup_path,
+        backupPath: info.path,
       }));
 
       setBackups(items);
@@ -126,11 +126,12 @@ export const BackupList: React.FC<BackupListProps> = ({
 
   const handleOpenInFileManager = async (backup: BackupItem) => {
     try {
+      console.log("opening ", backup.backupPath)
       await invoke("show_in_file_manager", {
-        target_path: backup.backupPath,
+        targetPath: backup.backupPath,
       });
     } catch (err) {
-      console.error("Failed to open in file manager:", err);
+      console.error(`Failed to open ${backup.backupPath} in file manager:`, err);
       // Optionally show an error message to the user
     }
   };
