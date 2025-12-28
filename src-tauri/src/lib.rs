@@ -367,7 +367,7 @@ fn detect_zomboid_save_path() -> FileOpsResult<String> {
 // Backup Commands (CORE-03)
 // ============================================================================
 
-/// Tauri command: Creates a backup of the specified save directory.
+/// Tauri command: Creates a backup of the specified save directory (async).
 ///
 /// # Arguments
 /// * `saveName` - Name of the save to backup (must exist in save path)
@@ -386,8 +386,8 @@ fn detect_zomboid_save_path() -> FileOpsResult<String> {
 /// console.log('Backups retained:', result.retained_count);
 /// ```
 #[tauri::command]
-fn create_backup_command(save_name: String) -> BackupResultT<BackupResult> {
-    backup::create_backup(&save_name)
+async fn create_backup_command(save_name: String) -> BackupResultT<BackupResult> {
+    backup::create_backup_async(&save_name).await
 }
 
 /// Tauri command: Lists all backups for a specific save.
@@ -501,7 +501,7 @@ fn generate_backup_name_command(save_name: String) -> String {
     backup::generate_backup_name(&save_name)
 }
 
-/// Tauri command: Deletes a specific backup.
+/// Tauri command: Deletes a specific backup (async).
 ///
 /// # Arguments
 /// * `saveName` - Name of the save
@@ -523,8 +523,8 @@ fn generate_backup_name_command(save_name: String) -> String {
 /// });
 /// ```
 #[tauri::command]
-fn delete_backup_command(save_name: String, backup_name: String) -> BackupResultT<()> {
-    backup::delete_backup(&save_name, &backup_name)
+async fn delete_backup_command(save_name: String, backup_name: String) -> BackupResultT<()> {
+    backup::delete_backup_async(&save_name, &backup_name).await
 }
 
 // ============================================================================
@@ -553,7 +553,7 @@ fn get_default_backup_path() -> FileOpsResult<String> {
 // Restore Commands (CORE-04)
 // ============================================================================
 
-/// Tauri command: Restores a backup with automatic undo snapshot creation.
+/// Tauri command: Restores a backup with automatic undo snapshot creation (async).
 ///
 /// # Arguments
 /// * `saveName` - Name of the save to restore
@@ -579,8 +579,8 @@ fn get_default_backup_path() -> FileOpsResult<String> {
 /// console.log('Undo snapshot created:', result.has_undo_snapshot);
 /// ```
 #[tauri::command]
-fn restore_backup_command(save_name: String, backup_name: String) -> RestoreResultT<RestoreResult> {
-    restore::restore_backup(&save_name, &backup_name)
+async fn restore_backup_command(save_name: String, backup_name: String) -> RestoreResultT<RestoreResult> {
+    restore::restore_backup_async(&save_name, &backup_name).await
 }
 
 /// Tauri command: Lists all undo snapshots for a specific save.
@@ -627,14 +627,14 @@ fn list_undo_snapshots_command(save_name: String) -> RestoreResultT<Vec<UndoSnap
 /// console.log('Restored from snapshot to:', result.save_path);
 /// ```
 #[tauri::command]
-fn restore_from_undo_snapshot_command(
+async fn restore_from_undo_snapshot_command(
     save_name: String,
     snapshot_name: String,
 ) -> RestoreResultT<RestoreResult> {
-    restore::restore_from_undo_snapshot(&save_name, &snapshot_name)
+    restore::restore_from_undo_snapshot_async(&save_name, &snapshot_name).await
 }
 
-/// Tauri command: Deletes an undo snapshot.
+/// Tauri command: Deletes an undo snapshot (async).
 ///
 /// # Arguments
 /// * `saveName` - Name of the save
@@ -653,8 +653,8 @@ fn restore_from_undo_snapshot_command(
 /// });
 /// ```
 #[tauri::command]
-fn delete_undo_snapshot_command(save_name: String, snapshot_name: String) -> RestoreResultT<()> {
-    restore::delete_undo_snapshot(&save_name, &snapshot_name)
+async fn delete_undo_snapshot_command(save_name: String, snapshot_name: String) -> RestoreResultT<()> {
+    restore::delete_undo_snapshot_async(&save_name, &snapshot_name).await
 }
 
 // ============================================================================

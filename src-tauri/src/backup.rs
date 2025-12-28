@@ -143,6 +143,31 @@ pub fn get_save_backup_dir(backup_base_path: &Path, save_name: &str) -> PathBuf 
     backup_base_path.join(save_name)
 }
 
+/// Creates a backup of the specified save directory (async version).
+///
+/// # Arguments
+/// * `save_name` - Relative path of the save to backup (e.g., "sandbox/aaa")
+///
+/// # Returns
+/// `BackupResultT<BackupResult>` - Information about the created backup
+///
+/// # Behavior
+/// Runs the synchronous backup operation in a blocking thread pool to avoid
+/// blocking the Tauri event loop. This prevents UI freezing during large backups.
+///
+/// # Backup Path Structure
+/// For a save at `Saves/sandbox/aaa`:
+/// - Backup path: `$PZ_BACKUP_PATH/sandbox/aaa/aaa_2024-12-28_14-30-45.tar.gz`
+pub async fn create_backup_async(save_name: &str) -> BackupResultT<BackupResult> {
+    let save_name = save_name.to_string();
+    tokio::task::spawn_blocking(move || create_backup(&save_name))
+        .await
+        .map_err(|e| BackupError::FileOp(FileOpsError::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Task join error: {}", e),
+        ))))?
+}
+
 /// Creates a backup of the specified save directory.
 ///
 /// # Arguments
@@ -438,6 +463,32 @@ pub fn list_saves_with_backups() -> BackupResultT<Vec<String>> {
 pub fn count_backups(save_name: &str) -> BackupResultT<usize> {
     let backups = list_backups(save_name)?;
     Ok(backups.len())
+}
+
+/// Deletes a specific backup (async version).
+///
+/// # Arguments
+/// * `save_name` - Relative path of the save (e.g., "sandbox/aaa")
+/// * `backup_name` - Name of the backup file to delete (e.g., "aaa_2024-12-28_14-30-45.tar.gz")
+///
+/// # Returns
+/// `BackupResultT<()>` - Ok(()) on success
+///
+/// # Behavior
+/// Runs the synchronous delete operation in a blocking thread pool to avoid
+/// blocking the Tauri event loop.
+///
+/// # Safety
+/// This is a destructive operation. Frontend should confirm with user before calling.
+pub async fn delete_backup_async(save_name: &str, backup_name: &str) -> BackupResultT<()> {
+    let save_name = save_name.to_string();
+    let backup_name = backup_name.to_string();
+    tokio::task::spawn_blocking(move || delete_backup(&save_name, &backup_name))
+        .await
+        .map_err(|e| BackupError::FileOp(FileOpsError::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Task join error: {}", e),
+        ))))?
 }
 
 /// Deletes a specific backup.

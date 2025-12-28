@@ -229,6 +229,38 @@ fn create_undo_snapshot(
     }))
 }
 
+/// Restores a backup to the save directory with undo snapshot creation (async version).
+///
+/// # Arguments
+/// * `save_name` - Relative path of the save to restore (e.g., "sandbox/aaa")
+/// * `backup_name` - Name of the backup tar.gz file to restore (e.g., "aaa_2024-12-28_14-30-45.tar.gz")
+///
+/// # Returns
+/// `RestoreResultT<RestoreResult>` - Information about the restore operation
+///
+/// # Behavior
+/// Runs the synchronous restore operation in a blocking thread pool to avoid
+/// blocking the Tauri event loop. This prevents UI freezing during large restores.
+///
+/// # Safety
+/// - Creates undo snapshot before any destructive operations
+/// - If current save doesn't exist, proceeds without snapshot (first-time restore scenario)
+///
+/// # Warning
+/// If Project Zomboid is running and has the save files open, this operation
+/// may fail due to file locks. The frontend should detect if the game is running
+/// and warn the user before attempting a restore.
+pub async fn restore_backup_async(save_name: &str, backup_name: &str) -> RestoreResultT<RestoreResult> {
+    let save_name = save_name.to_string();
+    let backup_name = backup_name.to_string();
+    tokio::task::spawn_blocking(move || restore_backup(&save_name, &backup_name))
+        .await
+        .map_err(|e| RestoreError::FileOp(FileOpsError::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Task join error: {}", e),
+        ))))?
+}
+
 /// Restores a backup to the save directory with undo snapshot creation.
 ///
 /// # Arguments
@@ -355,6 +387,32 @@ pub fn list_undo_snapshots(save_name: &str) -> RestoreResultT<Vec<UndoSnapshotIn
     Ok(snapshots)
 }
 
+/// Restores from an undo snapshot (async version).
+///
+/// # Arguments
+/// * `save_name` - Relative path of the save (e.g., "sandbox/aaa")
+/// * `snapshot_name` - Name of the undo snapshot tar.gz file to restore from (e.g., "undo_2024-12-28_14-30-45.tar.gz")
+///
+/// # Returns
+/// `RestoreResultT<RestoreResult>` - Information about the restore operation
+///
+/// # Behavior
+/// Runs the synchronous restore operation in a blocking thread pool to avoid
+/// blocking the Tauri event loop.
+pub async fn restore_from_undo_snapshot_async(
+    save_name: &str,
+    snapshot_name: &str,
+) -> RestoreResultT<RestoreResult> {
+    let save_name = save_name.to_string();
+    let snapshot_name = snapshot_name.to_string();
+    tokio::task::spawn_blocking(move || restore_from_undo_snapshot(&save_name, &snapshot_name))
+        .await
+        .map_err(|e| RestoreError::FileOp(FileOpsError::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Task join error: {}", e),
+        ))))?
+}
+
 /// Restores from an undo snapshot.
 ///
 /// # Arguments
@@ -409,6 +467,29 @@ pub fn restore_from_undo_snapshot(
         undo_snapshot_path: None,
         has_undo_snapshot: false,
     })
+}
+
+/// Deletes an undo snapshot (async version).
+///
+/// # Arguments
+/// * `save_name` - Relative path of the save (e.g., "sandbox/aaa")
+/// * `snapshot_name` - Name of the undo snapshot tar.gz file to delete (e.g., "undo_2024-12-28_14-30-45.tar.gz")
+///
+/// # Returns
+/// `RestoreResultT<()>` - Ok(()) on success
+///
+/// # Behavior
+/// Runs the synchronous delete operation in a blocking thread pool to avoid
+/// blocking the Tauri event loop.
+pub async fn delete_undo_snapshot_async(save_name: &str, snapshot_name: &str) -> RestoreResultT<()> {
+    let save_name = save_name.to_string();
+    let snapshot_name = snapshot_name.to_string();
+    tokio::task::spawn_blocking(move || delete_undo_snapshot(&save_name, &snapshot_name))
+        .await
+        .map_err(|e| RestoreError::FileOp(FileOpsError::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Task join error: {}", e),
+        ))))?
 }
 
 /// Deletes an undo snapshot.
