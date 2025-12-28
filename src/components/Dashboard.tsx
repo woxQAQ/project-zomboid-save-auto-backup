@@ -11,17 +11,13 @@ interface BackupResult {
   deleted_count: number;
 }
 
-interface DashboardProps {
-  onRestoreInitiate?: (saveName: string, backupName: string) => void;
-}
-
 /**
  * Dashboard component
  * Main content area showing save selector, backup actions, and backup list
  */
-export const Dashboard: React.FC<DashboardProps> = () => {
+export const Dashboard: React.FC = () => {
   const [selectedSave, setSelectedSave] = useState<string | null>(null);
-  const [key, setKey] = useState(0); // Used to force re-render
+  const [refreshKey, setRefreshKey] = useState(0); // Used to force refresh components
 
   // Backup Now state
   const [isBackingUp, setIsBackingUp] = useState(false);
@@ -51,6 +47,12 @@ export const Dashboard: React.FC<DashboardProps> = () => {
   } | null>(null);
 
   const hideToast = useCallback(() => setToast(null), []);
+
+  // Format error message for display (truncate if too long)
+  const formatErrorMessage = useCallback((err: unknown): string => {
+    const errStr = String(err);
+    return errStr.length > 100 ? `${errStr.substring(0, 100)}...` : errStr;
+  }, []);
 
   const showToast = useCallback((message: string, type: ToastType = "info") => {
     setToast({ message, type });
@@ -82,7 +84,7 @@ export const Dashboard: React.FC<DashboardProps> = () => {
       );
     } catch (err) {
       console.error("Backup failed:", err);
-      showToast(`Backup failed: ${err}`, "error");
+      showToast(`Backup failed: ${formatErrorMessage(err)}`, "error");
     } finally {
       setIsBackingUp(false);
     }
@@ -116,7 +118,7 @@ export const Dashboard: React.FC<DashboardProps> = () => {
       setRestoreData(null);
     } catch (err) {
       console.error("Restore failed:", err);
-      showToast(`Restore failed: ${err}`, "error");
+      showToast(`Restore failed: ${formatErrorMessage(err)}`, "error");
     } finally {
       setIsRestoring(false);
     }
@@ -153,7 +155,7 @@ export const Dashboard: React.FC<DashboardProps> = () => {
       setDeleteData(null);
     } catch (err) {
       console.error("Delete failed:", err);
-      showToast(`Delete failed: ${err}`, "error");
+      showToast(`Delete failed: ${formatErrorMessage(err)}`, "error");
     } finally {
       setIsDeleting(false);
     }
@@ -165,21 +167,18 @@ export const Dashboard: React.FC<DashboardProps> = () => {
     setDeleteData(null);
   };
 
-  // Force refresh when the component is remounted
+  // Force refresh of dashboard components
   const handleRefresh = () => {
-    setKey((prev) => prev + 1);
+    setRefreshKey((prev) => prev + 1);
   };
 
-  // Trigger to refresh backup list after changes
-  const [backupChangeTrigger, setBackupChangeTrigger] = useState(0);
-
-  // Function to trigger backup list refresh
+  // Function to trigger backup list refresh after mutations
   const refreshBackupList = () => {
-    setBackupChangeTrigger((prev) => prev + 1);
+    setRefreshKey((prev) => prev + 1);
   };
 
   return (
-    <div className="h-full flex flex-col p-6 space-y-6" key={key}>
+    <div className="h-full flex flex-col p-6 space-y-6" key={refreshKey}>
       {/* Page Title */}
       <div className="flex items-center justify-between">
         <div>
@@ -269,7 +268,7 @@ export const Dashboard: React.FC<DashboardProps> = () => {
       {/* Backup List */}
       <div className="flex-1 min-h-0">
         <BackupList
-          key={backupChangeTrigger}
+          key={refreshKey}
           saveName={selectedSave}
           onRestore={handleRestore}
           onDelete={handleDelete}

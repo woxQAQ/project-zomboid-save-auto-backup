@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 interface RestoreModalProps {
   isOpen: boolean;
   saveName: string | null;
@@ -21,6 +23,20 @@ export const RestoreModal: React.FC<RestoreModalProps> = ({
   onCancel,
   isRestoring = false,
 }) => {
+  // Handle Escape key to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isRestoring) {
+        onCancel();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onCancel, isRestoring]);
+
   if (!isOpen) return null;
 
   return (

@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 interface DeleteModalProps {
   isOpen: boolean;
   backupName: string | null;
@@ -19,6 +21,20 @@ export const DeleteModal: React.FC<DeleteModalProps> = ({
   onCancel,
   isDeleting = false,
 }) => {
+  // Handle Escape key to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isDeleting) {
+        onCancel();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onCancel, isDeleting]);
+
   if (!isOpen) return null;
 
   return (
