@@ -1,4 +1,9 @@
 #!/bin/sh
+# Skip pre-commit hooks in CI
+if [ -n "$CI" ]; then
+  exit 0
+fi
+
 echo "Running pre-commit hooks..."
 
 echo "1. Running Rust clippy linter..."
