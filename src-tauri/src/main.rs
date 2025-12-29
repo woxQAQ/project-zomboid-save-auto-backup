@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    tauri_app_lib::run()
+    pz_backup_tool_lib::run()
 }

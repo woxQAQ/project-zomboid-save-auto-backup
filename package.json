@@ -1,9 +1,10 @@
 {
-  "name": "tauri-app",
+  "name": "pz-backup-tool",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "release": "node scripts/sync-version.js",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",

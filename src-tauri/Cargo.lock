@@ -2777,6 +2777,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pz-backup-tool"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "dirs 5.0.1",
+ "flate2",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "tar",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "quick-xml"
 version = "0.37.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3759,25 +3778,6 @@ dependencies = [
  "webview2-com",
  "window-vibrancy",
  "windows",
-]
-
-[[package]]
-name = "tauri-app"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "dirs 5.0.1",
- "flate2",
- "serde",
- "serde_json",
- "serial_test",
- "tar",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tempfile",
- "tokio",
 ]
 
 [[package]]
