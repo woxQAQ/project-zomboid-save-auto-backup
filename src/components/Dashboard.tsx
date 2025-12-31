@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useState } from "react";
-import { DeleteModal, RestoreModal, Toast, type ToastType } from "./";
+import { DeleteModal, RestoreModal, Toast, type ToastType, UndoModal } from "./";
 import { BackupList } from "./BackupList";
 import { SaveSelector } from "./SaveSelector";
 
@@ -44,6 +44,9 @@ export const Dashboard: React.FC = () => {
     backupTime: string;
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Undo modal state
+  const [showUndoModal, setShowUndoModal] = useState(false);
 
   // Toast state
   const [toast, setToast] = useState<{
@@ -194,6 +197,12 @@ export const Dashboard: React.FC = () => {
     setRefreshKey((prev) => prev + 1);
   };
 
+  // Handle undo restore completed
+  const handleUndoRestored = () => {
+    refreshBackupList();
+    showToast("Successfully restored from undo snapshot", "success");
+  };
+
   return (
     <div className="h-full flex flex-col p-6 space-y-6" key={refreshKey}>
       {/* Page Title */}
@@ -280,6 +289,29 @@ export const Dashboard: React.FC = () => {
             </>
           )}
         </button>
+        <button
+          type="button"
+          onClick={() => setShowUndoModal(true)}
+          disabled={!selectedSave}
+          className="px-4 py-3 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 text-gray-200 rounded-lg transition-colors flex items-center space-x-2 whitespace-nowrap"
+          title="View undo snapshots (created before each restore)"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="w-5 h-5"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <span>Undo History</span>
+        </button>
       </div>
 
       {/* Backup List */}
@@ -320,6 +352,16 @@ export const Dashboard: React.FC = () => {
           onConfirm={handleConfirmDelete}
           onCancel={handleCancelDelete}
           isDeleting={isDeleting}
+        />
+      )}
+
+      {/* Undo Modal */}
+      {selectedSave && (
+        <UndoModal
+          isOpen={showUndoModal}
+          saveName={selectedSave}
+          onClose={() => setShowUndoModal(false)}
+          onUndoRestored={handleUndoRestored}
         />
       )}
 

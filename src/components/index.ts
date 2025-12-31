@@ -7,4 +7,5 @@ export { RestoreModal } from "./RestoreModal";
 export { SaveSelector } from "./SaveSelector";
 export { Settings } from "./Settings";
 export { Toast, type ToastType } from "./Toast";
+export { UndoModal } from "./UndoModal";
 export { UpdateAvailableModal } from "./UpdateAvailableModal";
