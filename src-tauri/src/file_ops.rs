@@ -439,7 +439,7 @@ pub fn show_in_file_manager(path: &Path) -> FileOpsResult<()> {
     Ok(())
 }
 
-/// Creates a compressed tar.gz archive of a directory.
+/// Creates a compressed tar.gz archive of a directory with atomic commit.
 ///
 /// # Arguments
 /// * `src_dir` - Source directory to compress
@@ -453,6 +453,8 @@ pub fn show_in_file_manager(path: &Path) -> FileOpsResult<()> {
 /// - Returns error if source doesn't exist
 /// - Returns error if destination already exists
 /// - Uses default gzip compression (level 6) for balanced speed/compression ratio
+/// - **Atomic write**: Writes to a temporary file first, then atomically renames to final path
+///   This ensures that if the process crashes during backup, no incomplete backup file is left
 ///
 /// # Example
 /// ```no_run
@@ -480,8 +482,11 @@ pub fn create_tar_gz(src_dir: &Path, dst_file: &Path) -> FileOpsResult<()> {
         }
     }
 
-    // Create the tar.gz file
-    let gz_file = fs::File::create(dst_file)?;
+    // Create a temporary file path for atomic write
+    let temp_file = dst_file.with_extension("tar.gz.tmp");
+
+    // Create the tar.gz file to temporary location
+    let gz_file = fs::File::create(&temp_file)?;
     let encoder = GzEncoder::new(gz_file, Compression::default());
     let mut tar = Builder::new(encoder);
 
@@ -491,6 +496,10 @@ pub fn create_tar_gz(src_dir: &Path, dst_file: &Path) -> FileOpsResult<()> {
     // Finish the archive (this flushes and completes the gzip stream)
     let encoder = tar.into_inner()?;
     encoder.finish()?;
+
+    // Atomically rename the temporary file to the final destination
+    // fs::rename is atomic on POSIX systems when files are on the same filesystem
+    fs::rename(&temp_file, dst_file)?;
 
     Ok(())
 }

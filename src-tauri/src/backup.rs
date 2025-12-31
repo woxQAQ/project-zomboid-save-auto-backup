@@ -177,10 +177,11 @@ pub async fn create_backup_async(save_name: &str) -> BackupResultT<BackupResult>
 /// `BackupResultT<BackupResult>` - Information about the created backup
 ///
 /// # Behavior
-/// 1. Validates the save directory exists
-/// 2. Generates timestamped backup name (using only save leaf name)
-/// 3. Creates a compressed tar.gz archive
-/// 4. Runs garbage collection to remove old backups exceeding retention limit
+/// 1. Cleans up any leftover temporary files from previous interrupted backups
+/// 2. Validates the save directory exists
+/// 3. Generates timestamped backup name (using only save leaf name)
+/// 4. Creates a compressed tar.gz archive (atomically)
+/// 5. Runs garbage collection to remove old backups exceeding retention limit
 ///
 /// # Backup Path Structure
 /// For a save at `Saves/sandbox/aaa`:
@@ -209,11 +210,14 @@ pub fn create_backup(save_name: &str) -> BackupResultT<BackupResult> {
         fs::create_dir_all(&save_backup_dir).map_err(FileOpsError::Io)?;
     }
 
+    // Clean up any leftover temporary files from previous interrupted backups
+    cleanup_temp_files(&save_backup_dir);
+
     // Generate backup name and path (backup_name uses only save leaf name)
     let backup_name = generate_backup_name(save_name);
     let backup_path = save_backup_dir.join(&backup_name);
 
-    // Perform the backup compression
+    // Perform the backup compression (atomic write)
     create_tar_gz(&save_dir, &backup_path)?;
 
     // Run garbage collection
@@ -226,6 +230,36 @@ pub fn create_backup(save_name: &str) -> BackupResultT<BackupResult> {
         retained_count: retained,
         deleted_count: deleted,
     })
+}
+
+/// Cleans up leftover temporary files from interrupted backup operations.
+///
+/// # Arguments
+/// * `save_backup_dir` - Directory containing backups for a specific save
+///
+/// # Behavior
+/// - Removes all `.tar.gz.tmp` files in the backup directory
+/// - Silently ignores errors (cleanup is best-effort)
+fn cleanup_temp_files(save_backup_dir: &Path) {
+    if !save_backup_dir.exists() {
+        return;
+    }
+
+    if let Ok(entries) = fs::read_dir(save_backup_dir) {
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            if path.is_file() {
+                if let Some(name) = path.file_name() {
+                    if let Some(name_str) = name.to_str() {
+                        if name_str.ends_with(".tar.gz.tmp") {
+                            // Silently ignore errors during cleanup
+                            let _ = fs::remove_file(&path);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Performs garbage collection on old backups.
@@ -284,6 +318,10 @@ struct BackupFile {
 ///
 /// # Returns
 /// `FileOpsResult<Vec<BackupFile>>` - List of backup files with metadata
+///
+/// # Behavior
+/// - Only includes completed .tar.gz files (excludes .tmp temporary files)
+/// - This ensures that incomplete backups being created are not listed
 fn list_backup_files(save_backup_dir: &Path) -> FileOpsResult<Vec<BackupFile>> {
     if !save_backup_dir.exists() {
         return Ok(Vec::new());
@@ -295,12 +333,12 @@ fn list_backup_files(save_backup_dir: &Path) -> FileOpsResult<Vec<BackupFile>> {
         let entry = entry?;
         let path = entry.path();
 
-        // Only process .tar.gz files
+        // Only process completed .tar.gz files (exclude .tmp temporary files)
         if path.is_file() {
             if let Some(name) = path.file_name() {
                 if let Some(name_str) = name.to_str() {
-                    // Check if it's a backup file (ends with .tar.gz)
-                    if name_str.ends_with(".tar.gz") {
+                    // Check if it's a completed backup file (ends with .tar.gz but not .tar.gz.tmp)
+                    if name_str.ends_with(".tar.gz") && !name_str.ends_with(".tar.gz.tmp") {
                         let metadata = entry.metadata()?;
                         let created = metadata
                             .created()
@@ -327,6 +365,9 @@ fn list_backup_files(save_backup_dir: &Path) -> FileOpsResult<Vec<BackupFile>> {
 ///
 /// # Returns
 /// `BackupResultT<Vec<BackupInfo>>` - List of backups sorted by creation time (newest first)
+///
+/// # Behavior
+/// - Only includes completed .tar.gz files (excludes .tmp temporary files)
 pub fn list_backups(save_name: &str) -> BackupResultT<Vec<BackupInfo>> {
     let config = config_module::load_config()?;
     let backup_base_path = config.get_backup_path()?;
@@ -342,12 +383,12 @@ pub fn list_backups(save_name: &str) -> BackupResultT<Vec<BackupInfo>> {
         let entry = entry.map_err(FileOpsError::Io)?;
         let path = entry.path();
 
-        // Only process .tar.gz files
+        // Only process completed .tar.gz files (exclude .tmp temporary files)
         if path.is_file() {
             if let Some(name) = path.file_name() {
                 if let Some(name_str) = name.to_str() {
-                    // Check if it's a backup file (ends with .tar.gz)
-                    if name_str.ends_with(".tar.gz") {
+                    // Check if it's a completed backup file (ends with .tar.gz but not .tar.gz.tmp)
+                    if name_str.ends_with(".tar.gz") && !name_str.ends_with(".tar.gz.tmp") {
                         let size_bytes = get_file_size(&path)?;
                         let size_formatted = crate::file_ops::format_size(size_bytes);
 
