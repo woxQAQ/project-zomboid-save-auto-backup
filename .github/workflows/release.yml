@@ -82,7 +82,7 @@ jobs:
       - name: Build Tauri app
         run: |
           $env:TAURI_BUNDLE_SKIP_SIGNING="true"
-          pnpm tauri build --config-json '{"bundle":{"targets":["nsis","exe"]},"tauri":{"cli":{"description":""}}}'
+          pnpm tauri build
         shell: pwsh
 
       - name: Generate SHA256 checksums
