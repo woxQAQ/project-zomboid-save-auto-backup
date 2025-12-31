@@ -33,9 +33,9 @@ pub struct BackupInfo {
     /// Tags associated with this backup
     #[serde(default)]
     pub tags: Vec<Tag>,
-    /// Path to the thumbnail image (thumb.png) in the save directory, if it exists
+    /// Base64-encoded thumbnail image (thumb.png) data URL, if exists in backup
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub thumb_path: Option<String>,
+    pub thumb_data: Option<String>,
 }
 
 /// Result of a backup creation operation.
@@ -381,16 +381,6 @@ pub fn list_backups(save_name: &str) -> BackupResultT<Vec<BackupInfo>> {
     let backup_base_path = config.get_backup_path()?;
     let save_backup_dir = get_save_backup_dir(&backup_base_path, save_name);
 
-    // Get the save directory to check for thumb.png
-    let save_path = config.get_save_path()?;
-    let save_dir = save_path.join(save_name);
-    let thumb_path = save_dir.join("thumb.png");
-    let thumb_path_str = if thumb_path.exists() {
-        Some(crate::file_ops::normalize_path_for_display(&thumb_path))
-    } else {
-        None
-    };
-
     if !save_backup_dir.exists() {
         return Ok(Vec::new());
     }
@@ -423,6 +413,10 @@ pub fn list_backups(save_name: &str) -> BackupResultT<Vec<BackupInfo>> {
                         let tags = crate::tags::get_backup_tags(save_name, name_str)
                             .unwrap_or_default();
 
+                        // Read thumb.png from the tar.gz archive
+                        let thumb_data = crate::file_ops::read_file_from_tar_gz_base64(&path, "thumb.png")
+                            .unwrap_or(None);
+
                         backups.push(BackupInfo {
                             name: name_str.to_string(),
                             path: crate::file_ops::normalize_path_for_display(&path),
@@ -431,7 +425,7 @@ pub fn list_backups(save_name: &str) -> BackupResultT<Vec<BackupInfo>> {
                             created_at,
                             save_name: save_name.to_string(),
                             tags,
-                            thumb_path: thumb_path_str.clone(),
+                            thumb_data,
                         });
                     }
                 }
@@ -481,15 +475,9 @@ pub fn get_backup_info(save_name: &str, backup_name: &str) -> BackupResultT<Back
     let tags = crate::tags::get_backup_tags(save_name, backup_name)
         .unwrap_or_default();
 
-    // Check for thumb.png in the save directory
-    let save_path = config.get_save_path()?;
-    let save_dir = save_path.join(save_name);
-    let thumb_path = save_dir.join("thumb.png");
-    let thumb_path_str = if thumb_path.exists() {
-        Some(crate::file_ops::normalize_path_for_display(&thumb_path))
-    } else {
-        None
-    };
+    // Read thumb.png from the tar.gz archive
+    let thumb_data = crate::file_ops::read_file_from_tar_gz_base64(&backup_path, "thumb.png")
+        .unwrap_or(None);
 
     Ok(BackupInfo {
         name: backup_name.to_string(),
@@ -499,7 +487,7 @@ pub fn get_backup_info(save_name: &str, backup_name: &str) -> BackupResultT<Back
         created_at,
         save_name: save_name.to_string(),
         tags,
-        thumb_path: thumb_path_str,
+        thumb_data,
     })
 }
 
@@ -907,7 +895,7 @@ mod tests {
             created_at: "2024-12-28T10:00:00Z".to_string(),
             save_name: "Survival".to_string(),
             tags: Vec::new(),
-            thumb_path: None,
+            thumb_data: None,
         };
 
         let json = serde_json::to_string(&info).unwrap();

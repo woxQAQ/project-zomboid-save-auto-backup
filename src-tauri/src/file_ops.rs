@@ -10,7 +10,7 @@ use std::fmt;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
-use flate2::{write::GzEncoder, Compression};
+use flate2::{write::GzEncoder, Compression, read::GzDecoder};
 use tar::Builder;
 
 /// Error type for file operations.
@@ -553,6 +553,81 @@ pub fn extract_tar_gz(src_file: &Path, dst_dir: &Path) -> FileOpsResult<()> {
     archive.unpack(dst_dir)?;
 
     Ok(())
+}
+
+/// Reads a specific file from a tar.gz archive and returns base64-encoded data URL.
+///
+/// # Arguments
+/// * `src_file` - Source .tar.gz file path
+/// * `file_path` - Path of the file to read inside the archive (e.g., "thumb.png")
+///
+/// # Returns
+/// `FileOpsResult<Option<String>>` - Some(data URL) if file exists, None if not found
+///
+/// # Behavior
+/// - Searches for the file in the archive
+/// - Returns base64-encoded data URL if found
+/// - Returns None if file not found (not an error)
+///
+/// # Example
+/// ```no_run
+/// use std::path::Path;
+/// use tauri_app_lib::file_ops::read_file_from_tar_gz_base64;
+///
+/// let result = read_file_from_tar_gz_base64(
+///     Path::new("/backup/game_2024-12-28.tar.gz"),
+///     "thumb.png"
+/// ).unwrap();
+/// ```
+pub fn read_file_from_tar_gz_base64(src_file: &Path, file_path: &str) -> FileOpsResult<Option<String>> {
+    if !src_file.exists() {
+        return Err(FileOpsError::SourceNotFound(src_file.to_path_buf()));
+    }
+
+    // Open the gz file and create a decoder
+    let gz_file = fs::File::open(src_file)?;
+    let decoder = GzDecoder::new(gz_file);
+    let mut archive = tar::Archive::new(decoder);
+
+    // Iterate through entries to find the target file
+    for entry in archive.entries()? {
+        let mut entry = entry?;
+        let path = entry.path()?;
+
+        // Check if this is the file we're looking for
+        // The path in tar might start with "./", so we need to handle that
+        let entry_path = path.to_string_lossy();
+        let normalized_path = entry_path.strip_prefix("./").unwrap_or(&entry_path);
+
+        if normalized_path == file_path {
+            // Read the file content
+            let mut buffer = Vec::new();
+            entry.read_to_end(&mut buffer)?;
+
+            // Determine MIME type based on file extension
+            let mime_type = if file_path.to_lowercase().ends_with(".png") {
+                "image/png"
+            } else if file_path.to_lowercase().ends_with(".jpg") || file_path.to_lowercase().ends_with(".jpeg") {
+                "image/jpeg"
+            } else if file_path.to_lowercase().ends_with(".gif") {
+                "image/gif"
+            } else if file_path.to_lowercase().ends_with(".webp") {
+                "image/webp"
+            } else {
+                "image/png"
+            };
+
+            // Encode to base64
+            use base64::Engine;
+            let base64_engine = base64::engine::general_purpose::STANDARD;
+            let base64_string = base64_engine.encode(&buffer);
+
+            return Ok(Some(format!("data:{};base64,{}", mime_type, base64_string)));
+        }
+    }
+
+    // File not found in archive
+    Ok(None)
 }
 
 /// Gets the size of a file.
