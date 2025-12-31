@@ -1,6 +1,6 @@
 [package]
 name = "pz-backup-tool"
-version = "1.0.6"
+version = "1.0.7"
 description = "Automated backup tool for Project Zomboid saves"
 authors = ["woxQAQ"]
 edition = "2021"
