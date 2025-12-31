@@ -33,6 +33,9 @@ pub struct BackupInfo {
     /// Tags associated with this backup
     #[serde(default)]
     pub tags: Vec<Tag>,
+    /// Path to the thumbnail image (thumb.png) in the save directory, if it exists
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumb_path: Option<String>,
 }
 
 /// Result of a backup creation operation.
@@ -378,6 +381,16 @@ pub fn list_backups(save_name: &str) -> BackupResultT<Vec<BackupInfo>> {
     let backup_base_path = config.get_backup_path()?;
     let save_backup_dir = get_save_backup_dir(&backup_base_path, save_name);
 
+    // Get the save directory to check for thumb.png
+    let save_path = config.get_save_path()?;
+    let save_dir = save_path.join(save_name);
+    let thumb_path = save_dir.join("thumb.png");
+    let thumb_path_str = if thumb_path.exists() {
+        Some(crate::file_ops::normalize_path_for_display(&thumb_path))
+    } else {
+        None
+    };
+
     if !save_backup_dir.exists() {
         return Ok(Vec::new());
     }
@@ -418,6 +431,7 @@ pub fn list_backups(save_name: &str) -> BackupResultT<Vec<BackupInfo>> {
                             created_at,
                             save_name: save_name.to_string(),
                             tags,
+                            thumb_path: thumb_path_str.clone(),
                         });
                     }
                 }
@@ -467,6 +481,16 @@ pub fn get_backup_info(save_name: &str, backup_name: &str) -> BackupResultT<Back
     let tags = crate::tags::get_backup_tags(save_name, backup_name)
         .unwrap_or_default();
 
+    // Check for thumb.png in the save directory
+    let save_path = config.get_save_path()?;
+    let save_dir = save_path.join(save_name);
+    let thumb_path = save_dir.join("thumb.png");
+    let thumb_path_str = if thumb_path.exists() {
+        Some(crate::file_ops::normalize_path_for_display(&thumb_path))
+    } else {
+        None
+    };
+
     Ok(BackupInfo {
         name: backup_name.to_string(),
         path: crate::file_ops::normalize_path_for_display(&backup_path),
@@ -475,6 +499,7 @@ pub fn get_backup_info(save_name: &str, backup_name: &str) -> BackupResultT<Back
         created_at,
         save_name: save_name.to_string(),
         tags,
+        thumb_path: thumb_path_str,
     })
 }
 
@@ -882,6 +907,7 @@ mod tests {
             created_at: "2024-12-28T10:00:00Z".to_string(),
             save_name: "Survival".to_string(),
             tags: Vec::new(),
+            thumb_path: None,
         };
 
         let json = serde_json::to_string(&info).unwrap();

@@ -12,9 +12,11 @@ use backup::{BackupInfo, BackupResult, BackupResultT};
 use config::{Config, ConfigResult, SaveEntry};
 use tags::{Tag, TagsResultT};
 use file_ops::FileOpsResult;
+use std::fs;
+use std::path::Path;
+use base64::Engine;
 use restore::{GameProcessCheckResult, RestoreResult, RestoreResultT, UndoSnapshotInfo};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use update_checker::UpdateInfo;
 
 /// Result of directory size query
@@ -164,6 +166,58 @@ fn format_size(bytes: u64) -> String {
 #[tauri::command]
 fn show_in_file_manager(target_path: String) -> FileOpsResult<()> {
     file_ops::show_in_file_manager(Path::new(&target_path))
+}
+
+/// Tauri command: Reads an image file and returns it as base64 data URL.
+///
+/// # Arguments
+/// * `image_path` - Path to the image file
+///
+/// # Returns
+/// `FileOpsResult<String>` - Base64-encoded data URL (e.g., "data:image/png;base64,...")
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// const dataUrl = await invoke('read_image_as_base64', {
+///   imagePath: '/path/to/thumb.png'
+/// });
+/// // Use in img tag: <img src={dataUrl} />
+/// ```
+#[tauri::command]
+fn read_image_as_base64(image_path: String) -> FileOpsResult<String> {
+    let path = Path::new(&image_path);
+
+    // Check if file exists
+    if !path.exists() {
+        return Err(file_ops::FileOpsError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("Image file not found: {}", image_path),
+        )));
+    }
+
+    // Read the file
+    let image_data = fs::read(path)?;
+
+    // Encode to base64
+    let base64_engine = base64::engine::general_purpose::STANDARD;
+    let base64_string = base64_engine.encode(&image_data);
+
+    // Determine MIME type based on file extension
+    let mime_type = if image_path.to_lowercase().ends_with(".png") {
+        "image/png"
+    } else if image_path.to_lowercase().ends_with(".jpg") || image_path.to_lowercase().ends_with(".jpeg") {
+        "image/jpeg"
+    } else if image_path.to_lowercase().ends_with(".gif") {
+        "image/gif"
+    } else if image_path.to_lowercase().ends_with(".webp") {
+        "image/webp"
+    } else {
+        "image/png"
+    };
+
+    Ok(format!("data:{};base64,{}", mime_type, base64_string))
 }
 
 // ============================================================================
@@ -948,6 +1002,7 @@ pub fn run() {
             get_dir_size,
             format_size,
             show_in_file_manager,
+            read_image_as_base64,
             // Config commands (CORE-02)
             load_config_command,
             save_config_command,

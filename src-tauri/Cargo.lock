@@ -2959,6 +2959,7 @@ dependencies = [
 name = "pz-backup-tool"
 version = "1.0.6"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "dirs 5.0.1",
  "flate2",

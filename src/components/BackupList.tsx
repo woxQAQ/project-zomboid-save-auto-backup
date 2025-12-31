@@ -20,6 +20,7 @@ interface BackupInfo {
   created_at: string;
   path: string;
   tags: Tag[];
+  thumb_path?: string;
 }
 
 interface BackupItem {
@@ -29,6 +30,7 @@ interface BackupItem {
   timeAgo: string;
   backupPath: string;
   tags: Tag[];
+  thumbPath?: string;
 }
 
 /**
@@ -82,6 +84,7 @@ export const BackupList: React.FC<BackupListProps> = ({
   const [backups, setBackups] = useState<BackupItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
 
   // Tag-related state
   const { tags: availableTags, loadAllTags } = useTags();
@@ -114,6 +117,7 @@ export const BackupList: React.FC<BackupListProps> = ({
         timeAgo: formatTimeAgo(info.created_at),
         backupPath: info.path,
         tags: info.tags,
+        thumbPath: info.thumb_path,
       }));
 
       setBackups(items);
@@ -157,6 +161,33 @@ export const BackupList: React.FC<BackupListProps> = ({
       // Optionally show an error message to the user
     }
   };
+
+  // Load thumbnail for a specific backup
+  const loadThumbnail = useCallback(
+    async (thumbPath: string, backupName: string) => {
+      if (thumbnailUrls[backupName]) {
+        return; // Already loaded
+      }
+      try {
+        const dataUrl = await invoke("read_image_as_base64", {
+          imagePath: thumbPath,
+        });
+        setThumbnailUrls((prev) => ({ ...prev, [backupName]: dataUrl as string }));
+      } catch (err) {
+        console.error(`Failed to load thumbnail for ${backupName}:`, err);
+      }
+    },
+    [thumbnailUrls],
+  );
+
+  // Load thumbnails when backups change
+  useEffect(() => {
+    backups.forEach((backup) => {
+      if (backup.thumbPath && !thumbnailUrls[backup.name]) {
+        loadThumbnail(backup.thumbPath, backup.name);
+      }
+    });
+  }, [backups, thumbnailUrls, loadThumbnail]);
 
   // Tag-related handlers
   const handleEditTags = (backup: BackupItem) => {
@@ -448,6 +479,17 @@ export const BackupList: React.FC<BackupListProps> = ({
                 )}
               </div>
             </div>
+
+            {/* Thumbnail display */}
+            {thumbnailUrls[backup.name] && (
+              <div className="mt-3">
+                <img
+                  src={thumbnailUrls[backup.name]}
+                  alt={`Thumbnail for ${backup.name}`}
+                  className="h-32 w-auto rounded border border-gray-700 object-cover"
+                />
+              </div>
+            )}
 
             {/* Tags display */}
             <TagList tags={backup.tags} />
