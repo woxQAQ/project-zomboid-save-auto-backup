@@ -10,6 +10,7 @@ interface Config {
   backup_path: string | null;
   retention_count: number;
   auto_check_updates?: boolean;
+  last_selected_save?: string | null;
 }
 
 interface UpdateInfo {

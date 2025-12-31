@@ -272,6 +272,27 @@ fn update_retention_count(count: usize) -> ConfigResult<()> {
     config::update_retention_count(count)
 }
 
+/// Tauri command: Updates the last selected save in the configuration.
+///
+/// # Arguments
+/// * `relativePath` - Relative path of the selected save (e.g., "Survival/MySave")
+///
+/// # Returns
+/// `ConfigResult<()>` - Ok(()) on success
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// await invoke('update_last_selected_save', {
+///   relativePath: 'Survival/MySave'
+/// });
+/// ```
+#[tauri::command]
+fn update_last_selected_save(relative_path: String) -> ConfigResult<()> {
+    config::update_last_selected_save(relative_path)
+}
+
 /// Tauri command: Lists all save directories in the Zomboid saves folder.
 ///
 /// # Deprecated
@@ -786,6 +807,7 @@ pub fn run() {
             update_save_path,
             update_backup_path,
             update_retention_count,
+            update_last_selected_save,
             list_save_directories,
             list_save_entries,
             list_save_entries_by_game_mode,

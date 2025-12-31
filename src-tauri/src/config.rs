@@ -40,6 +40,11 @@ pub struct Config {
     /// Timestamp of the last update check (ISO 8601 format).
     #[serde(default)]
     pub last_update_check: Option<String>,
+
+    /// Last selected save relative path (e.g., "Survival/MySave").
+    /// Used to restore the user's previous selection on app startup.
+    #[serde(default)]
+    pub last_selected_save: Option<String>,
 }
 
 /// Default value for auto_check_updates field.
@@ -55,6 +60,7 @@ impl Default for Config {
             retention_count: DEFAULT_RETENTION_COUNT,
             auto_check_updates: default_auto_check_updates(),
             last_update_check: None,
+            last_selected_save: None,
         }
     }
 }
@@ -327,6 +333,26 @@ pub fn update_retention_count(count: usize) -> ConfigResult<()> {
 
     let mut config = load_config()?;
     config.retention_count = count;
+    save_config(&config)
+}
+
+/// Updates the last selected save in the configuration and persists it.
+///
+/// # Arguments
+/// * `relative_path` - The relative path of the selected save (e.g., "Survival/MySave")
+///
+/// # Returns
+/// `ConfigResult<()>` - Ok(()) on success
+///
+/// # Example
+/// ```no_run
+/// use tauri_app_lib::config::update_last_selected_save;
+///
+/// update_last_selected_save("Survival/MySave".to_string()).unwrap();
+/// ```
+pub fn update_last_selected_save(relative_path: String) -> ConfigResult<()> {
+    let mut config = load_config()?;
+    config.last_selected_save = Some(relative_path);
     save_config(&config)
 }
 
@@ -687,6 +713,7 @@ mod tests {
             retention_count: 15,
             auto_check_updates: true,
             last_update_check: None,
+            last_selected_save: None,
         };
 
         // Serialize to JSON
@@ -719,6 +746,24 @@ mod tests {
     fn test_update_retention_count_zero_fails() {
         let result = update_retention_count(0);
         assert!(result.is_err());
+    }
+
+    #[test]
+    #[serial]
+    fn test_update_last_selected_save() {
+        let temp_dir = TempDir::new().unwrap();
+        let saves_dir = temp_dir.path().join("Saves");
+        fs::create_dir(&saves_dir).unwrap();
+
+        let config = Config::with_save_path(saves_dir.to_str().unwrap().to_string());
+        save_config(&config).unwrap();
+
+        // Update last selected save
+        update_last_selected_save("Survival/MySave".to_string()).unwrap();
+
+        // Verify persistence
+        let loaded = load_config().unwrap();
+        assert_eq!(loaded.last_selected_save, Some("Survival/MySave".to_string()));
     }
 
     #[test]
@@ -806,6 +851,7 @@ mod tests {
             retention_count: 10,
             auto_check_updates: true,
             last_update_check: None,
+            last_selected_save: None,
         };
 
         let result = config.validate();

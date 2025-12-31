@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DeleteModal, RestoreModal, Toast, type ToastType, UndoModal } from "./";
 import { BackupList } from "./BackupList";
 import { SaveSelector } from "./SaveSelector";
@@ -14,6 +14,14 @@ interface BackupResult {
 interface GameProcessCheckResult {
   is_running: boolean;
   process_name: string | null;
+}
+
+interface Config {
+  save_path: string | null;
+  backup_path: string | null;
+  retention_count: number;
+  auto_check_updates?: boolean;
+  last_selected_save?: string | null;
 }
 
 /**
@@ -66,9 +74,37 @@ export const Dashboard: React.FC = () => {
     setToast({ message, type });
   }, []);
 
-  const handleSaveChange = (saveName: string | null) => {
+  // Load last selected save from config on mount
+  useEffect(() => {
+    const loadLastSelectedSave = async () => {
+      try {
+        const config = await invoke<Config>("load_config_command");
+        const lastSave = config.last_selected_save || null;
+        if (lastSave) {
+          setSelectedSave(lastSave);
+        }
+      } catch (err) {
+        console.error("Failed to load last selected save:", err);
+      }
+    };
+
+    loadLastSelectedSave();
+  }, []);
+
+  const handleSaveChange = useCallback(async (saveName: string | null) => {
     setSelectedSave(saveName);
-  };
+
+    // Persist the selection to config
+    if (saveName) {
+      try {
+        await invoke("update_last_selected_save", {
+          relativePath: saveName,
+        });
+      } catch (err) {
+        console.error("Failed to save last selected save:", err);
+      }
+    }
+  }, []);
 
   // Backup now handler
   const handleBackupNow = async () => {
