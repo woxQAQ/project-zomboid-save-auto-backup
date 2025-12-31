@@ -1,4 +1,3 @@
-export { AutoBackupControl } from "./AutoBackupControl";
 export { BackupList } from "./BackupList";
 export { Dashboard } from "./Dashboard";
 export { DeleteModal } from "./DeleteModal";
