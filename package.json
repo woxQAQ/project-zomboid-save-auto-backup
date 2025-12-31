@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:check": "cargo clippy --manifest-path=src-tauri/Cargo.toml",
+    "tauri:test": "cargo test --manifest-path=src-tauri/Cargo.toml",
+    "tauri:build:check": "cargo check --manifest-path=src-tauri/Cargo.toml",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
     "format": "biome format --write src/",

@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   release:
-    name: Build and Release (Windows)
+    name: Build and Release
     runs-on: windows-latest
 
     steps:
@@ -25,86 +25,34 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
-
-      - name: Configure Rust for speed
-        run: |
-          echo "CARGO_PROFILE_RELEASE_LTO=true" >> $env:GITHUB_ENV
-          echo "CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1" >> $env:GITHUB_ENV
-          echo "CARGO_PROFILE_RELEASE_OPT_LEVEL=z" >> $env:GITHUB_ENV
-        shell: pwsh
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
+          cache: "pnpm"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
         with:
-          version: latest
+          targets: x86_64-pc-windows-msvc
 
-      - name: Cache pnpm
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.pnpm-store
-            node_modules
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-            src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('src-tauri/**/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: Rust Cache
+      - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: "src-tauri"
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Build frontend
-        run: pnpm build
-
-      - name: Build Tauri app
-        run: |
-          $env:TAURI_BUNDLE_SKIP_SIGNING="true"
-          pnpm tauri build
-        shell: pwsh
-
-      - name: Generate SHA256 checksums
-        run: |
-          cd src-tauri/target/release/bundle
-          Get-ChildItem -Recurse -File | ForEach-Object {
-            $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash
-            "$($hash)  $($_.Name)" | Out-File -FilePath "$($_.Name).sha256" -Encoding utf8
-          }
-        shell: pwsh
 
       - name: Generate changelog
         run: npx changelogithub@latest
         env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload release assets
-        run: |
-          $files = Get-ChildItem -Path "src-tauri/target/release/bundle" -Recurse -File `
-            | Where-Object { $_.Extension -in '.exe', '.msi', '.sha256' } `
-            | Select-Object -ExpandProperty FullName
-          gh release upload "${{ github.ref_name }}" $files --clobber
-        shell: pwsh
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: pnpm tauri
+          args: --target x86_64-pc-windows-msvc

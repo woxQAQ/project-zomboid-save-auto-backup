@@ -38,12 +38,13 @@ pnpm dev
 # Type checking
 pnpm tsc --noEmit
 
-# Run tests (Rust backend)
-cd src-tauri && cargo test
+# Rust backend commands
+pnpm tauri:check      # Cargo clippy (linting)
+pnpm tauri:test       # Cargo test (run tests)
+pnpm tauri:build:check # Cargo check (compile check)
 
-# Linting
-pnpm lint          # Frontend (Biome)
-pnpm tauri:check   # Backend (Cargo clippy)
+# Frontend linting
+pnpm lint          # Biome check
 
 # Fix linting issues
 pnpm lint:fix
