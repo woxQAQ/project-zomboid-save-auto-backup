@@ -4,6 +4,7 @@
 //! - Safe restore with undo snapshot creation
 //! - Pre-restore backup of current save state
 //! - Atomic restore operations with rollback capability
+//! - Game process detection to prevent restore while game is running
 
 use crate::backup::{get_save_backup_dir, BackupError};
 use crate::config as config_module;
@@ -12,6 +13,15 @@ use crate::file_ops::{create_tar_gz, delete_dir_recursive, extract_tar_gz, FileO
 use serde::{Deserialize, Serialize, Serializer};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// Result of game process check.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GameProcessCheckResult {
+    /// Whether Project Zomboid is currently running
+    pub is_running: bool,
+    /// Process name if found (for display purposes)
+    pub process_name: Option<String>,
+}
 
 /// Result of a restore operation.
 #[derive(Debug, Serialize, Deserialize)]
@@ -64,6 +74,8 @@ pub enum RestoreError {
     CurrentSaveNotFound(String),
     /// Undo snapshot directory creation failed
     UndoSnapshotFailed(String),
+    /// Game is currently running
+    GameRunning(String),
 }
 
 impl From<FileOpsError> for RestoreError {
@@ -97,6 +109,9 @@ impl std::fmt::Display for RestoreError {
             }
             RestoreError::UndoSnapshotFailed(msg) => {
                 write!(f, "Failed to create undo snapshot: {}", msg)
+            }
+            RestoreError::GameRunning(process_name) => {
+                write!(f, "Project Zomboid is currently running ({}). Please close the game before restoring.", process_name)
             }
         }
     }
@@ -152,6 +167,178 @@ pub fn generate_undo_snapshot_name() -> String {
     let now = chrono::Utc::now();
     let timestamp = now.format("%Y-%m-%d_%H-%M-%S");
     format!("undo_{}.tar.gz", timestamp)
+}
+
+/// Checks if Project Zomboid is currently running.
+///
+/// # Returns
+/// `GameProcessCheckResult` - Contains whether game is running and process name if found
+///
+/// # Behavior
+/// - **Windows**: Checks for ProjectZomboid64.exe or ProjectZomboid.exe processes
+/// - **macOS**: Checks for ProjectZomboid process
+/// - **Linux**: Checks for ProjectZomboid, projectzomboid, or java processes with Zomboid in command line
+///
+/// # Example
+/// ```no_run
+/// use tauri_app_lib::restore::check_game_running;
+///
+/// let result = check_game_running();
+/// if result.is_running {
+///     println!("Game is running as {:?}", result.process_name);
+/// }
+/// ```
+pub fn check_game_running() -> GameProcessCheckResult {
+    #[cfg(target_os = "windows")]
+    {
+        check_game_running_windows()
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        check_game_running_macos()
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        check_game_running_linux()
+    }
+}
+
+/// Windows-specific game detection using tasklist.
+#[cfg(target_os = "windows")]
+fn check_game_running_windows() -> GameProcessCheckResult {
+    use std::process::Command;
+
+    // Try to list processes and find ProjectZomboid
+    let output = match Command::new("tasklist")
+        .args(&["/FO", "CSV", "/NH"])
+        .output()
+    {
+        Ok(output) => output,
+        Err(_) => return GameProcessCheckResult {
+            is_running: false,
+            process_name: None,
+        },
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Check for ProjectZomboid64.exe or ProjectZomboid.exe
+    let process_names = ["ProjectZomboid64.exe", "ProjectZomboid.exe"];
+    for process_name in &process_names {
+        // tasklist CSV format: "ProjectZomboid64.exe","12345",...
+        if stdout.contains(&format!("\"{}\"", process_name)) {
+            return GameProcessCheckResult {
+                is_running: true,
+                process_name: Some(process_name.to_string()),
+            };
+        }
+    }
+
+    GameProcessCheckResult {
+        is_running: false,
+        process_name: None,
+    }
+}
+
+/// macOS-specific game detection using pgrep and ps.
+#[cfg(target_os = "macos")]
+fn check_game_running_macos() -> GameProcessCheckResult {
+    use std::process::Command;
+
+    // Try pgrep first (faster)
+    if let Ok(output) = Command::new("pgrep")
+        .arg("-x")
+        .arg("ProjectZomboid")
+        .output()
+    {
+        if !output.stdout.is_empty() {
+            return GameProcessCheckResult {
+                is_running: true,
+                process_name: Some("ProjectZomboid".to_string()),
+            };
+        }
+    }
+
+    // Fallback to ps
+    if let Ok(output) = Command::new("ps")
+        .args(&["-ax", "-o", "comm="])
+        .output()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            let process = line.trim();
+            if process.contains("ProjectZomboid") || process.contains("projectzomboid") {
+                return GameProcessCheckResult {
+                    is_running: true,
+                    process_name: Some(process.to_string()),
+                };
+            }
+        }
+    }
+
+    GameProcessCheckResult {
+        is_running: false,
+        process_name: None,
+    }
+}
+
+/// Linux-specific game detection using pgrep and ps.
+#[cfg(target_os = "linux")]
+fn check_game_running_linux() -> GameProcessCheckResult {
+    use std::process::Command;
+
+    // Try pgrep for ProjectZomboid
+    if let Ok(output) = Command::new("pgrep")
+        .args(&["-x", "ProjectZomboid"])
+        .output()
+    {
+        if !output.stdout.is_empty() {
+            return GameProcessCheckResult {
+                is_running: true,
+                process_name: Some("ProjectZomboid".to_string()),
+            };
+        }
+    }
+
+    // Try pgrep for lowercase version
+    if let Ok(output) = Command::new("pgrep")
+        .args(&["-x", "projectzomboid"])
+        .output()
+    {
+        if !output.stdout.is_empty() {
+            return GameProcessCheckResult {
+                is_running: true,
+                process_name: Some("projectzomboid".to_string()),
+            };
+        }
+    }
+
+    // Fallback to ps for Java processes running Zomboid
+    if let Ok(output) = Command::new("ps")
+        .args(&["-ax", "-o", "comm="])
+        .output()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            let process = line.trim();
+            if process.contains("ProjectZomboid")
+                || process.contains("projectzomboid")
+                || (process.contains("java") && process.contains("zomboid"))
+            {
+                return GameProcessCheckResult {
+                    is_running: true,
+                    process_name: Some(process.to_string()),
+                };
+            }
+        }
+    }
+
+    GameProcessCheckResult {
+        is_running: false,
+        process_name: None,
+    }
 }
 
 /// Creates an undo snapshot of the current save state.
@@ -282,9 +469,16 @@ pub async fn restore_backup_async(save_name: &str, backup_name: &str) -> Restore
 ///
 /// # Warning
 /// If Project Zomboid is running and has the save files open, this operation
-/// may fail due to file locks. The frontend should detect if the game is running
-/// and warn the user before attempting a restore.
+/// will be blocked with an error. The user must close the game before restoring.
 pub fn restore_backup(save_name: &str, backup_name: &str) -> RestoreResultT<RestoreResult> {
+    // Check if Project Zomboid is running before proceeding
+    let game_check = check_game_running();
+    if game_check.is_running {
+        return Err(RestoreError::GameRunning(
+            game_check.process_name.unwrap_or_else(|| "ProjectZomboid".to_string()),
+        ));
+    }
+
     let config = config_module::load_config()?;
     let save_path = config.get_save_path()?;
     let backup_base_path = config.get_backup_path()?;
@@ -423,13 +617,22 @@ pub async fn restore_from_undo_snapshot_async(
 /// `RestoreResultT<RestoreResult>` - Information about the restore operation
 ///
 /// # Behavior
-/// 1. Validates the undo snapshot tar.gz file exists
-/// 2. Clears the current save directory
-/// 3. Extracts the snapshot tar.gz file to the save directory
+/// 1. Checks if Project Zomboid is running (blocks if yes)
+/// 2. Validates the undo snapshot tar.gz file exists
+/// 3. Clears the current save directory
+/// 4. Extracts the snapshot tar.gz file to the save directory
 pub fn restore_from_undo_snapshot(
     save_name: &str,
     snapshot_name: &str,
 ) -> RestoreResultT<RestoreResult> {
+    // Check if Project Zomboid is running before proceeding
+    let game_check = check_game_running();
+    if game_check.is_running {
+        return Err(RestoreError::GameRunning(
+            game_check.process_name.unwrap_or_else(|| "ProjectZomboid".to_string()),
+        ));
+    }
+
     let config = config_module::load_config()?;
     let save_path = config.get_save_path()?;
     let backup_base_path = config.get_backup_path()?;

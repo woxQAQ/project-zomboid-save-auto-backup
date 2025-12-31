@@ -12,7 +12,7 @@ use auto_backup::{AutoBackupStatus, AutoBackupResultT};
 use backup::{BackupInfo, BackupResult, BackupResultT};
 use config::{Config, ConfigResult, SaveEntry};
 use file_ops::FileOpsResult;
-use restore::{RestoreResult, RestoreResultT, UndoSnapshotInfo};
+use restore::{GameProcessCheckResult, RestoreResult, RestoreResultT, UndoSnapshotInfo};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use update_checker::UpdateInfo;
@@ -585,6 +585,31 @@ async fn restore_backup_command(save_name: String, backup_name: String) -> Resto
     restore::restore_backup_async(&save_name, &backup_name).await
 }
 
+/// Tauri command: Checks if Project Zomboid is currently running.
+///
+/// # Returns
+/// `GameProcessCheckResult` - Contains whether game is running and process name if found
+///
+/// # Behavior
+/// - **Windows**: Checks for ProjectZomboid64.exe or ProjectZomboid.exe processes
+/// - **macOS**: Checks for ProjectZomboid process
+/// - **Linux**: Checks for ProjectZomboid, projectzomboid, or java processes with Zomboid in command line
+///
+/// # Example (Frontend)
+/// ```javascript
+/// import { invoke } from '@tauri-apps/api/core';
+///
+/// const result = await invoke('check_game_running');
+/// if (result.isRunning) {
+///   console.log('Game is running:', result.processName);
+///   alert('Please close Project Zomboid before restoring');
+/// }
+/// ```
+#[tauri::command]
+fn check_game_running_command() -> GameProcessCheckResult {
+    restore::check_game_running()
+}
+
 /// Tauri command: Lists all undo snapshots for a specific save.
 ///
 /// # Arguments
@@ -916,6 +941,7 @@ pub fn run() {
             generate_backup_name_command,
             delete_backup_command,
             // Restore commands (CORE-04)
+            check_game_running_command,
             restore_backup_command,
             list_undo_snapshots_command,
             restore_from_undo_snapshot_command,

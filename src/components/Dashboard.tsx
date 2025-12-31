@@ -11,6 +11,11 @@ interface BackupResult {
   deleted_count: number;
 }
 
+interface GameProcessCheckResult {
+  is_running: boolean;
+  process_name: string | null;
+}
+
 /**
  * Dashboard component
  * Main content area showing save selector, backup actions, and backup list
@@ -115,6 +120,18 @@ export const Dashboard: React.FC = () => {
 
     try {
       setIsRestoring(true);
+
+      // Frontend game process check
+      const gameCheck = await invoke<GameProcessCheckResult>("check_game_running_command");
+      if (gameCheck.is_running) {
+        showToast(
+          `Cannot restore: Project Zomboid is currently running (${gameCheck.process_name || "ProjectZomboid"}). Please close the game first.`,
+          "error",
+        );
+        setIsRestoring(false);
+        return;
+      }
+
       await invoke("restore_backup_command", {
         saveName: restoreData.saveName,
         backupName: restoreData.backupName,
