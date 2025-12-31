@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Dashboard, Layout, Settings, UpdateAvailableModal } from "./components";
 
 interface UpdateInfo {
@@ -17,17 +17,17 @@ function App() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [hasCheckedForUpdates, setHasCheckedForUpdates] = useState(false);
 
-  const handleSettingsClick = () => {
-    setShowSettings(!showSettings);
-  };
+  const handleSettingsClick = useCallback(() => {
+    setShowSettings((prev) => !prev);
+  }, []);
 
-  const handleCloseSettings = () => {
+  const handleCloseSettings = useCallback(() => {
     setShowSettings(false);
-  };
+  }, []);
 
-  const handleCloseUpdateModal = () => {
+  const handleCloseUpdateModal = useCallback(() => {
     setShowUpdateModal(false);
-  };
+  }, []);
 
   // Check for updates on startup (if enabled)
   useEffect(() => {
