@@ -2957,7 +2957,7 @@ dependencies = [
 
 [[package]]
 name = "pz-backup-tool"
-version = "1.0.5"
+version = "1.0.6"
 dependencies = [
  "chrono",
  "dirs 5.0.1",
