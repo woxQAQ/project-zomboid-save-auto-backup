@@ -189,7 +189,7 @@ export const SaveSelector: React.FC<SaveSelectorProps> = ({ selectedSave, onSave
   }
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 h-full flex flex-col">
       <div className="flex items-center gap-4">
         {/* Game Mode Selector */}
         <div className="flex-1">
