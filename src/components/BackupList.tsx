@@ -319,8 +319,17 @@ export const BackupList: React.FC<BackupListProps> = ({
         {backups.map((backup) => (
           <div key={backup.name} className="px-6 py-4 hover:bg-gray-800/50 transition-colors group">
             <div className="flex items-center justify-between mb-2">
-              {/* Left: Time info */}
-              <div className="flex-1">
+              {/* Left: Thumbnail + Time info */}
+              <div className="flex-1 flex items-center space-x-4">
+                {/* Thumbnail */}
+                {backup.thumbData && (
+                  <img
+                    src={backup.thumbData}
+                    alt={`Thumbnail for ${backup.name}`}
+                    className="h-16 w-auto rounded border border-gray-700 object-cover flex-shrink-0"
+                  />
+                )}
+                {/* Time info */}
                 <div className="flex items-center space-x-3">
                   <div className="flex items-center space-x-2">
                     <svg
@@ -451,17 +460,6 @@ export const BackupList: React.FC<BackupListProps> = ({
                 )}
               </div>
             </div>
-
-            {/* Thumbnail display */}
-            {backup.thumbData && (
-              <div className="mt-3">
-                <img
-                  src={backup.thumbData}
-                  alt={`Thumbnail for ${backup.name}`}
-                  className="h-32 w-auto rounded border border-gray-700 object-cover"
-                />
-              </div>
-            )}
 
             {/* Tags display */}
             <TagList tags={backup.tags} />
