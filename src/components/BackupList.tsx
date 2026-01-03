@@ -329,26 +329,32 @@ export const BackupList: React.FC<BackupListProps> = ({
                     className="h-16 w-auto rounded border border-gray-700 object-cover flex-shrink-0"
                   />
                 )}
-                {/* Time info */}
-                <div className="flex items-center space-x-3">
-                  <div className="flex items-center space-x-2">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="w-5 h-5 text-gray-500"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <span className="font-medium text-foreground">{backup.createdAt}</span>
+                {/* Time info + Tags */}
+                <div className="flex flex-col">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="w-5 h-5 text-gray-500"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <span className="font-medium text-foreground">{backup.createdAt}</span>
+                    </div>
+                    <span className="text-sm text-gray-500">({backup.timeAgo})</span>
                   </div>
-                  <span className="text-sm text-gray-500">({backup.timeAgo})</span>
+                  {/* Tags display */}
+                  <div className="mt-1">
+                    <TagList tags={backup.tags} />
+                  </div>
                 </div>
               </div>
 
@@ -460,9 +466,6 @@ export const BackupList: React.FC<BackupListProps> = ({
                 )}
               </div>
             </div>
-
-            {/* Tags display */}
-            <TagList tags={backup.tags} />
           </div>
         ))}
       </div>

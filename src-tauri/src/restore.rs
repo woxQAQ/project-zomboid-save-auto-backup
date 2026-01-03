@@ -211,8 +211,7 @@ fn check_game_running_windows() -> GameProcessCheckResult {
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::ProcessStatus::{EnumProcesses, K32GetModuleBaseNameW};
     use windows::Win32::System::Threading::OpenProcess;
-    use windows::Win32::System::ProcessStatus::PROCESS_QUERY_INFORMATION;
-    use windows::Win32::System::Threading::PROCESS_VM_READ;
+    use windows::Win32::System::Threading::{PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
 
     const PROCESS_COUNT: u32 = 1024;
     let mut process_ids = [0u32; PROCESS_COUNT as usize];
